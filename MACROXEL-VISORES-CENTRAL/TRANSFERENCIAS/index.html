@@ -899,7 +899,7 @@ body.mx-module-open-v103 .wrap{max-width:none!important;width:100%!important;pad
 <button class="viewer-tab" id="tabPatients" title="Consulta de pacientes" type="button"><span class="mx-menu-icon" aria-hidden="true">👤</span><span class="mx-menu-label">Pacientes</span></button>
 <button class="viewer-tab" id="tabInventory" type="button">Existencias</button>
 <button class="viewer-tab" id="tabTransfer" title="Transferencias" type="button"><span class="mx-menu-icon" aria-hidden="true">🔁</span><span class="mx-menu-label">Transferencias</span></button>
-<button class="viewer-tab" id="tabSurtidoCollective" title="Surtir colectivos" type="button"><span class="mx-menu-icon" aria-hidden="true">💊</span><span class="mx-menu-label">Surtir colectivo</span></button>
+<button class="viewer-tab" id="tabSurtidoCollective" title="Surtir colectivos" type="button"><span class="mx-menu-icon" aria-hidden="true">👥</span><span class="mx-menu-label">Surtir colectivo</span></button>
 <button class="viewer-tab" id="tabRecipeSupply" title="Surtido de recetas" type="button"><span class="mx-menu-icon" aria-hidden="true">🩺</span><span class="mx-menu-label">Surtido recetas</span></button>
 <button class="viewer-tab" id="tabTransferAdjust" title="Ajustar inventario" type="button"><span class="mx-menu-icon" aria-hidden="true">⚙️</span><span class="mx-menu-label">Ajustar inventario</span></button>
 <button class="viewer-tab" id="tabAnalysisSystem" title="Análisis del sistema" type="button"><span class="mx-menu-icon" aria-hidden="true">📊</span><span class="mx-menu-label">Análisis</span></button>
@@ -1718,7 +1718,14 @@ async function mxTrBumpVersion(path){const p=String(path||'');const key=p.includ
     if(!raw.length){const c=getCfg(),aliases=[...new Set((p.remoteKeys||[]).filter(Boolean))];for(const alias of aliases){const node=await fetchJson('/antibiotic_patient_history/'+encodeURIComponent(c.branch)+'/patients/'+encodeURIComponent(alias)).catch(()=>null);if(node){for(const row of historyItemsFromNode(node))raw.push(normalizeHistoryRow({...row,patientKey:row?.patientKey||alias,paciente:row?.paciente||node.nombre||p.nombre,expediente:row?.expediente||node.expediente||p.expediente}))}}}
     applyFilters();setPatientStatus(raw.length?`Detalle actualizado · ${raw.length} movimiento${raw.length===1?'':'s'} · Solo consulta`:'Paciente localizado · sin movimientos publicados');return raw.length>0;
   }
-  function applyFilters(){filtered=selectedKey?raw.slice():[];renderPatients();renderTable();renderKpis()}
+  function applyFilters(){
+    const preserve=!$('patientsView')?.classList.contains('mx-hidden'),pageY=window.scrollY||window.pageYOffset||0,list=$('patientList'),listY=list?.scrollTop||0;
+    filtered=selectedKey?raw.slice():[];renderPatients();renderTable();renderKpis();
+    if(preserve){
+      const restore=()=>{if(list)list.scrollTop=listY;const now=window.scrollY||window.pageYOffset||0;if(Math.abs(now-pageY)>2){try{window.scrollTo({top:pageY,left:0,behavior:'instant'})}catch(_e){window.scrollTo(0,pageY)}}};
+      requestAnimationFrame(restore);setTimeout(restore,60);setTimeout(restore,180);
+    }
+  }
   function renderKpis(){const fol=new Set(filtered.map(x=>x.folio).filter(Boolean));if($('kPatients'))$('kPatients').textContent=selectedKey?1:0;if($('kRows'))$('kRows').textContent=filtered.length;if($('kPzs'))$('kPzs').textContent=filtered.reduce((a,b)=>a+num(b.pzs),0);if($('kFolios'))$('kFolios').textContent=fol.size}
   function mxPatientActivityDate(p={}){
     const primary=parseMxDate(p.ultimaFecha||'');if(primary)return primary;
@@ -1739,7 +1746,7 @@ async function mxTrBumpVersion(path){const p=String(path||'');const key=p.includ
   function mxPatientDailySummary(){let today=0,yesterday=0;for(const p of patientCatalog){const d=mxPatientDayInfo(p).day;if(d==='today')today++;else if(d==='yesterday')yesterday++}return{today,yesterday,total:today+yesterday}}
   function renderPatients(){
     const q=norm($('q')?.value||''),list=mxPatientVisibleList(q),summary=mxPatientDailySummary();
-    $('patientList').innerHTML=list.length?list.map(p=>{const info=mxPatientDayInfo(p),badge=!q&&info.day!=='older'?`<span class="mx-patient-census" style="margin-left:5px;background:${info.day==='today'?'#dcfce7':'#fef3c7'};color:${info.day==='today'?'#166534':'#92400e'}">${info.day==='today'?'HOY':'AYER'}</span>`:'';return`<button class="patient ${selectedKey===p.key?'active':''}" data-key="${esc(p.key)}"><div class="name">${esc(p.nombre)}${badge}${p.enCenso?'<span class="mx-patient-census">CENSO</span>':''}</div><div class="meta">${p.expediente?'Exp. '+esc(p.expediente)+' · ':''}${p.ultimoServicio?'Servicio: '+esc(p.ultimoServicio)+' · ':''}${p.folioAsignado?'Folio: '+esc(p.folioAsignado)+' · ':''}${p.ultimaFecha?'Último: '+esc(p.ultimaFecha):'Sin fecha publicada'}</div></button>`}).join(''):`<div class="empty">${q?'No se encontraron pacientes en el historial disponible.':'No hay pacientes con movimiento de hoy ni de ayer. Usa el buscador para consultar fechas anteriores.'}</div>`;
+    $('patientList').innerHTML=list.length?list.map(p=>{const info=mxPatientDayInfo(p),badge=!q&&info.day!=='older'?`<span class="mx-patient-census" style="margin-left:5px;background:${info.day==='today'?'#dcfce7':'#fef3c7'};color:${info.day==='today'?'#166534':'#92400e'}">${info.day==='today'?'HOY':'AYER'}</span>`:'';return`<button type="button" class="patient ${selectedKey===p.key?'active':''}" data-key="${esc(p.key)}"><div class="name">${esc(p.nombre)}${badge}${p.enCenso?'<span class="mx-patient-census">CENSO</span>':''}</div><div class="meta">${p.expediente?'Exp. '+esc(p.expediente)+' · ':''}${p.ultimoServicio?'Servicio: '+esc(p.ultimoServicio)+' · ':''}${p.folioAsignado?'Folio: '+esc(p.folioAsignado)+' · ':''}${p.ultimaFecha?'Último: '+esc(p.ultimaFecha):'Sin fecha publicada'}</div></button>`}).join(''):`<div class="empty">${q?'No se encontraron pacientes en el historial disponible.':'No hay pacientes con movimiento de hoy ni de ayer. Usa el buscador para consultar fechas anteriores.'}</div>`;
     if(!q&&!selectedKey)setPatientStatus(`${summary.today} paciente${summary.today===1?'':'s'} de hoy + ${summary.yesterday} de ayer sin registro hoy · la búsqueda consulta fechas anteriores`);
     document.querySelectorAll('#patientList .patient').forEach(b=>b.onclick=()=>{const p=patientCatalog.find(x=>x.key===b.dataset.key);if(!p)return;selectedKey=p.key;selectedName=p.nombre;selectedExp=p.expediente;sendPatientQuery().catch(e=>{setPatientStatus('No se pudo consultar: '+e.message);setFirebaseStatus(false,'Sin acceso a Firebase')})});
   }
@@ -4587,7 +4594,7 @@ if(window.__mxTransferNativeNavigationV111)return;window.__mxTransferNativeNavig
 const MAP={
  patients:{tab:'tabPatients',view:'patientsView',label:'Pacientes'},inventory:{tab:'tabInventory',view:'inventoryView',label:'Existencias'},
  transfer:{tab:'tabTransfer',view:'transferView',label:'🔁 Transferencias'},
- surtido:{tab:'tabSurtidoCollective',view:'surtidoCollectiveView',label:'💊 Surtir colectivo',init:'__mxInitNativeSurtido',resume:'mxSurtidoResumeSync'},
+ surtido:{tab:'tabSurtidoCollective',view:'surtidoCollectiveView',label:'👥 Surtir colectivo',init:'__mxInitNativeSurtido',resume:'mxSurtidoResumeSync'},
  recipes:{tab:'tabRecipeSupply',view:'recipeSupplyView',label:'🩺 Surtido recetas',init:'__mxInitNativeRecipes',resume:'mxRecipesResumeSync'},
  adjust:{tab:'tabTransferAdjust',view:'transferAdjustView',label:'⚙️ Ajustar inventario'},
  analysis:{tab:'tabAnalysisSystem',view:'analysisSystemView',label:'📊 Análisis',init:'__mxInitNativeAnalysis',resume:'mxAnalysisResumeSync'},
@@ -4638,10 +4645,16 @@ function callLegacy(k){const fn=legacy[k],b=$(MAP[k]?.tab);if(typeof fn==='funct
 function announce(){try{window.dispatchEvent(new CustomEvent('mx-module-active-change',{detail:{active:valid(active)?active:'',home:!valid(active)}}))}catch(_e){}}
 function navigate(k,opts={}){
  if(!valid(k))return false;
+ const sameModule=active===k,keepY=window.scrollY||window.pageYOffset||0;
  active=k;setHash(k);enforce();announce();
  if(MAP[k].init)initNative(k);else if(opts.load!==false)callLegacy(k);
  requestAnimationFrame(enforce);setTimeout(enforce,40);
- try{window.scrollTo({top:0,behavior:'instant'})}catch(_e){window.scrollTo(0,0)}
+ if(!sameModule||opts.scrollTop===true){
+   try{window.scrollTo({top:0,behavior:'instant'})}catch(_e){window.scrollTo(0,0)}
+ }else{
+   const restore=()=>{const now=window.scrollY||window.pageYOffset||0;if(Math.abs(now-keepY)>2){try{window.scrollTo({top:keepY,left:0,behavior:'instant'})}catch(_e){window.scrollTo(0,keepY)}}};
+   requestAnimationFrame(restore);setTimeout(restore,70);setTimeout(restore,180);
+ }
  return true;
 }
 function goHome(opts={}){active='';if(opts.hash!==false)setHash('');enforce();announce();try{window.scrollTo({top:0,behavior:'instant'})}catch(_e){window.scrollTo(0,0)}}
@@ -4662,7 +4675,7 @@ function init(){
  captureLegacy();bindButtons();active=valid(hashModule())?hashModule():'';ready=true;enforce();announce();
  if(active){if(MAP[active].init)initNative(active);else callLegacy(active)}
  window.addEventListener('hashchange',()=>{const k=hashModule();if(valid(k)&&k!==active)navigate(k,{load:true});else if(!valid(k)&&active)goHome({hash:false})});
- window.mxTransferStableNavigation={get active(){return active},get home(){return !valid(active)},open:k=>navigate(k,{load:true}),goHome,enforce};window.mxResumeSync=async(reason='manual')=>{const k=active;if(!valid(k))return true;try{if(k==='surtido')return await window.mxSurtidoResumeSync?.();if(k==='recipes')return await window.mxRecipesResumeSync?.();if(k==='analysis')return await window.mxAnalysisActivate?.(true);if(k==='antibiotics')return await window.mxTransferAntibioticsResumeSync?.();if(k==='adjust'){await window.mxSharedInventoryHub?.syncStocks?.(true);window.mxOpenInventoryCountModule?.();return true}navigate(k,{load:true});return true}catch(_e){navigate(k,{load:true});return false}};
+ window.mxTransferStableNavigation={get active(){return active},get home(){return !valid(active)},open:k=>navigate(k,{load:true}),goHome,enforce};window.mxResumeSync=async(reason='manual')=>{const k=active;if(!valid(k))return true;try{if(k==='surtido')return await window.mxSurtidoResumeSync?.();if(k==='recipes')return await window.mxRecipesResumeSync?.();if(k==='analysis')return await window.mxAnalysisActivate?.(true);if(k==='antibiotics')return await window.mxTransferAntibioticsResumeSync?.();if(k==='adjust'){await window.mxSharedInventoryHub?.syncStocks?.(true);window.mxOpenInventoryCountModule?.();return true}if(k==='patients'){const y=window.scrollY||window.pageYOffset||0;callLegacy(k);enforce();requestAnimationFrame(()=>{try{window.scrollTo({top:y,left:0,behavior:'instant'})}catch(_e){window.scrollTo(0,y)}});return true}navigate(k,{load:true});return true}catch(_e){if(k==='patients'){enforce();return false}navigate(k,{load:true});return false}};
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else setTimeout(init,0);
 })();
