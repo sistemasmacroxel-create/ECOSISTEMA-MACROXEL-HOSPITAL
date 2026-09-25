@@ -223,7 +223,18 @@ html.mx-startup-splash-pending,html.mx-startup-splash-pending body{background:#0
 #fvJustList{contain:layout paint}
 </style>
 <meta content="fv-rebuild-2026-09-03-pdf-buttons-v1090" name="mx-build"/>
-</head>
+<style id="mx-fv-antibiotic-stock-v1">
+#view-antibioticStock .fv-abx-stock-table table{min-width:900px}
+#view-antibioticStock .fv-abx-num{font-size:14px;font-weight:950;color:#12395f}
+#view-antibioticStock .fv-abx-mini{display:block;color:var(--muted);font-size:9px;margin-top:2px}
+#view-antibioticStock .fv-abx-state{font-weight:950}
+#view-antibioticStock .fv-abx-state.ok{color:#166534}
+#view-antibioticStock .fv-abx-state.bad{color:#b91c1c}
+#view-antibioticStock tr.fv-abx-danger{background:#fff1f2}
+#view-antibioticStock tr.fv-abx-danger td{color:#7f1d1d}
+#view-antibioticStock #fvAbxStockAlert{border-color:#fecaca;background:#fef2f2;color:#991b1b;font-weight:900}
+@media(max-width:760px){#view-antibioticStock .fv-abx-stock-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style></head>
 <body>
 
 <div class="app">
@@ -243,6 +254,7 @@ html.mx-startup-splash-pending,html.mx-startup-splash-pending body{background:#0
 <button class="active" data-view="dashboard">📊 Resumen</button>
 <button data-view="patients" id="fvPatientsNav">👤 Pacientes 15 días</button>
 <button data-view="consumption">💊 Consumo antibióticos</button>
+<button data-view="antibioticStock" id="fvAntibioticStockNav">📦 Existencia antibióticos</button>
 <button data-view="justifiedValidation">✅ Validación CJ <span class="fv-just-badge hidden" id="fvJustBadge">0</span></button>
 <button data-view="cases">🛡️ Casos</button>
 <button data-view="gantt">📅 Gantt</button>
@@ -385,6 +397,17 @@ html.mx-startup-splash-pending,html.mx-startup-splash-pending body{background:#0
 <div class="value" id="patPieces">0</div>
 </div>
 </div>
+<div class="fv-patient-assigned" style="margin-top:10px">
+<div class="section-head" style="margin-bottom:6px">
+<div><h3 style="margin:0">💊 Medicamentos asignados</h3><div class="sub">Tratamientos y colectivos asociados al paciente, aunque todavía no tengan un movimiento surtido.</div></div>
+</div>
+<div class="table-wrap">
+<table class="table">
+<thead><tr><th>Estado</th><th>Medicamento</th><th>Folio / colectivo</th><th>Servicio</th><th>Tratamiento</th><th>Recibido</th><th>Restante</th></tr></thead>
+<tbody id="fvPatientAssignedMeds"><tr><td colspan="7" class="empty">Selecciona un paciente.</td></tr></tbody>
+</table>
+</div>
+</div>
 <div class="chart-wrap" style="height:180px">
 <canvas height="180" id="chartPatient" width="850">
 </canvas>
@@ -502,6 +525,28 @@ html.mx-startup-splash-pending,html.mx-startup-splash-pending body{background:#0
 <tbody id="drugConsumption">
 </tbody>
 </table>
+</div>
+</div>
+</section>
+
+<section class="view hidden" id="view-antibioticStock">
+<div class="card fv-abx-stock-card">
+<div class="section-head">
+<div><h2>📦 Existencia antibióticos</h2><div class="sub">Existencia real del inventario principal, piezas comprometidas por Colectivos justificados activos y capacidad estimada para abrir nuevos colectivos.</div></div>
+<div class="toolbar"><button class="btn secondary sm" id="fvAbxStockRefresh" type="button">🔄 Actualizar</button></div>
+</div>
+<div class="grid g4 fv-abx-stock-kpis" style="margin-bottom:10px">
+<div class="kpi"><div class="label">Antibióticos</div><div class="value" id="fvAbxStockProducts">0</div><small>Con existencia publicada</small></div>
+<div class="kpi"><div class="label">Existencia real</div><div class="value" id="fvAbxStockExistence">0</div><small>Piezas disponibles en inventario</small></div>
+<div class="kpi"><div class="label">Comprometidas</div><div class="value" id="fvAbxStockCommitted">0</div><small>Colectivos activos</small></div>
+<div class="kpi"><div class="label">Disponible nuevo</div><div class="value" id="fvAbxStockFree">0</div><small>Después de compromisos y reserva</small></div>
+</div>
+<div class="field"><label>Buscar antibiótico</label><input id="fvAbxStockQ" autocomplete="off" placeholder="Clave o nombre del antibiótico"/></div>
+<div class="notice hidden" id="fvAbxStockAlert" style="margin-top:8px"></div>
+<div class="notice" id="fvAbxStockStatus" style="margin-top:8px">Abre este módulo para consultar la existencia.</div>
+<div class="table-wrap fv-abx-stock-table" style="margin-top:10px">
+<table class="table"><thead><tr><th>Clave</th><th>Antibiótico</th><th>Existencia real</th><th>Comprometido</th><th>Disponible nuevo</th><th>Colectivos posibles</th><th>Estado</th></tr></thead>
+<tbody id="fvAbxStockBody"><tr><td colspan="7" class="empty">Sin consultar.</td></tr></tbody></table>
 </div>
 </div>
 </section>
@@ -1732,7 +1777,7 @@ async function closeFvJustifiedWithValidation(){
     alert(adjusted?'✅ Colectivo cerrado. La cantidad ajustada quedó disponible en el Sistema Principal para surtir y cerrar.':'✅ Colectivo cerrado directamente. No se envió a Pedidos porque no hubo ajuste pendiente.')
   }catch(e){if(btn){btn.disabled=false;btn.textContent='🔒 Cerrar con validación'}alert('No se pudo cerrar el colectivo: '+(e?.message||e))}
 }
-function showView(name){const target=txt(name)||'dashboard';if(target!=='justifiedValidation'){currentJustifiedOrder=null;$('fvJustModal')?.classList.add('hidden');$('fvJustList')?.closest('.card')?.classList.remove('hidden');const toast=$('fvJustVoiceToast');if(toast){toast.classList.remove('show');toast.onclick=null;toast.onkeydown=null}}document.querySelectorAll('.view').forEach(v=>v.classList.add('hidden'));$('view-'+target)?.classList.remove('hidden');document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===target));document.documentElement.dataset.mxFvActiveView=target;if(target==='dashboard')renderDashboard();if(target==='patients')loadClinicalData(false);if(target==='consumption')loadClinicalData(false).then(()=>renderConsumption()).catch(()=>renderConsumption());if(target==='justifiedValidation')loadJustifiedOrders(true);if(target==='cases')renderCases();if(target==='gantt')renderGantt();if(target==='signals')renderSignals();if(target==='reports')renderReports()}
+function showView(name){const target=txt(name)||'dashboard';if(target!=='justifiedValidation'){currentJustifiedOrder=null;$('fvJustModal')?.classList.add('hidden');$('fvJustList')?.closest('.card')?.classList.remove('hidden');const toast=$('fvJustVoiceToast');if(toast){toast.classList.remove('show');toast.onclick=null;toast.onkeydown=null}}document.querySelectorAll('.view').forEach(v=>v.classList.add('hidden'));$('view-'+target)?.classList.remove('hidden');document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===target));document.documentElement.dataset.mxFvActiveView=target;if(target==='dashboard')renderDashboard();if(target==='patients')loadClinicalData(false);if(target==='consumption')loadClinicalData(false).then(()=>renderConsumption()).catch(()=>renderConsumption());if(target==='antibioticStock')window.mxFvAntibioticStockOpen?.(false);if(target==='justifiedValidation')loadJustifiedOrders(true);if(target==='cases')renderCases();if(target==='gantt')renderGantt();if(target==='signals')renderSignals();if(target==='reports')renderReports()}
 window.showView=showView;
 function setConnection(ok,msg){if(ok===true)window.mxStableConnectionReport?.(true,msg||'Firebase disponible',false,{firebase:true});else if(ok===false&&navigator.onLine===false)window.mxStableConnectionReport?.(false,msg||'Sin conexión',true,{firebase:false});}
 async function ping(){try{await get(`/inventory_heartbeat/${branch()}`);setConnection(true,'Conectado a Firebase');return true}catch(e){try{await get(`${ROOT.licenses}/${branch()}/${deviceId()}`);setConnection(true,'Conectado a Firebase');return true}catch(_){setConnection(false,licensed?'Modo sin conexión':'Sin acceso a Firebase');return false}}}
@@ -1881,16 +1926,58 @@ async function fvPatientCloseConfirm(){
 function renderActiveView(){const name=activeViewName();if(name==='dashboard')renderDashboard();else if(name==='patients')renderPatientDetail();else if(name==='consumption')renderConsumption();else if(name==='justifiedValidation')renderJustifiedValidations();else if(name==='cases')renderCases();else if(name==='gantt')renderGantt();else if(name==='signals')renderSignals();else if(name==='reports')renderReports()}
 function renderAll(){renderPatientList();populateCasePatients();renderJustifiedValidations();renderActiveView()}
 function renderPatientList(){const q=norm($('patientSearch').value),rows=fvPatientVisibleList(q),summary=fvPatientDailySummary();$('patientList').innerHTML=rows.length?rows.map(p=>{const info=fvPatientDayInfo(p),badge=q.length<2&&info.day!=='older'?` <span class="tag ${info.day==='today'?'ok':'warn'}" style="font-size:9px">${info.day==='today'?'HOY':'AYER'}</span>`:'';return `<button class="patient-item ${selectedPatient?.key===p.key?'active':''}" data-key="${esc(p.key)}"><b><span>${esc(p.nombre)}</span>${badge}${fvPatientCensusBadge(p)}</b><small>Expediente: ${esc(p.expediente||'—')} · ${p.registros||0} movimientos · ${p.totalPzs||0} pzs · ${esc(p.ultimoServicio||'Sin servicio')}</small></button>`}).join(''):(q.length>=2?'<div class="empty">No se encontró ese paciente en el historial disponible.</div>':'<div class="empty">No hay pacientes con movimiento de hoy ni de ayer. Usa el buscador para consultar fechas anteriores.</div>');if(q.length<2&&$('fvPatientsWindowText'))$('fvPatientsWindowText').textContent=`Todos los servicios · ${summary.today} paciente(s) de HOY + ${summary.yesterday} de AYER sin movimiento hoy. El buscador consulta fechas anteriores.`;$('patientList').querySelectorAll('[data-key]').forEach(b=>b.onclick=()=>selectPatient(b.dataset.key))}
-async function selectPatient(key){selectedPatient=patientCatalogAll.find(p=>p.key===key)||patients.find(p=>p.key===key)||null;patientRows=[];renderPatientList();$('patientNewCase').disabled=!selectedPatient;if($('patientViewPdf'))$('patientViewPdf').disabled=!selectedPatient;if($('patientCloseCollective'))$('patientCloseCollective').disabled=!selectedPatient;if(!selectedPatient){renderPatientDetail();return}patientRows=historyRows.filter(r=>txt(r.patientKey||r.key)===selectedPatient.key||norm(recordPatient(r))===norm(selectedPatient.nombre)&&(!selectedPatient.expediente||norm(recordFile(r))===norm(selectedPatient.expediente)));renderPatientDetail();void MXCollectivePdf.prepare({branch:branch,get:path=>get(path)}).catch(()=>{});const id='fvq_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),body={id,status:'pending',sucursal:branch(),createdAt:new Date().toISOString(),patientKey:'',patient:selectedPatient.nombre,expediente:selectedPatient.expediente,from:'',to:''};try{await put(`${ROOT.patientQueries}/${branch()}/${id}`,body);for(let i=0;i<30;i++){await new Promise(r=>setTimeout(r,500));const resp=await get(`${ROOT.patientResponses}/${branch()}/${id}`).catch(()=>null);if(resp&&Array.isArray(resp.items)){patientRows=resp.items.slice();historyRows=mergeHistory(historyRows,patientRows);renderPatientDetail();return}}if(!patientRows.length)throw new Error('Macroxel Hospitales no respondió a la consulta.')}catch(e){renderPatientDetail(patientRows.length?'Datos locales mostrados; no hubo respuesta nueva del sistema principal.':e.message)}}
+async function selectPatient(key){selectedPatient=patientCatalogAll.find(p=>p.key===key)||patients.find(p=>p.key===key)||null;patientRows=[];renderPatientList();$('patientNewCase').disabled=!selectedPatient;if($('patientViewPdf'))$('patientViewPdf').disabled=!selectedPatient;if($('patientCloseCollective'))$('patientCloseCollective').disabled=!selectedPatient;if(!selectedPatient){renderPatientDetail();return}patientRows=historyRows.filter(r=>txt(r.patientKey||r.key)===selectedPatient.key||norm(recordPatient(r))===norm(selectedPatient.nombre)&&(!selectedPatient.expediente||norm(recordFile(r))===norm(selectedPatient.expediente)));renderPatientDetail();void MXCollectivePdf.prepare({branch:branch,get:path=>get(path)}).catch(()=>{});const id='fvq_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),body={id,status:'pending',sucursal:branch(),createdAt:new Date().toISOString(),patientKey:selectedPatient.key||'',patient:selectedPatient.nombre,expediente:selectedPatient.expediente,from:'',to:''};try{await put(`${ROOT.patientQueries}/${branch()}/${id}`,body);for(let i=0;i<30;i++){await new Promise(r=>setTimeout(r,500));const resp=await get(`${ROOT.patientResponses}/${branch()}/${id}`).catch(()=>null);if(resp&&Array.isArray(resp.items)){patientRows=resp.items.slice();historyRows=mergeHistory(historyRows,patientRows);renderPatientDetail();return}}if(!patientRows.length)throw new Error('Macroxel Hospitales no respondió a la consulta.')}catch(e){renderPatientDetail(patientRows.length?'Datos locales mostrados; no hubo respuesta nueva del sistema principal.':e.message)}}
 function mergeHistory(a,b){const map=new Map();[...a,...b].forEach(r=>{const k=[recordPatient(r),recordFile(r),recordDate(r),recordDrug(r),recordPieces(r),txt(r.folio)].join('|');map.set(k,r)});return Array.from(map.values())}
+function fvPatientOrderMatchesSelected(order={},p=selectedPatient){
+  if(!p)return false;
+  const file=norm(recordFile(order)||order?.expediente),targetFile=norm(p.expediente);
+  if(file&&targetFile&&file===targetFile)return true;
+  const name=norm(recordPatient(order)||order?.paciente||order?.nombrePaciente);
+  return !!name&&name===norm(p.nombre);
+}
+function fvPatientAssignedMedications(){
+  const p=selectedPatient;if(!p)return[];
+  const profile=fvPatientProfileForSelected()||p,raw=[];
+  const add=(src={},parent={})=>{
+    if(!src||typeof src!=='object')return;
+    const merged={...parent,...src};
+    const drug=txt(src.medicamento||src.descripcion||src.nombreMedicamento||src.denominacionGenerica||src.producto||src.clave||src.codigo||parent.medicamento||parent.descripcion||parent.clave);
+    const key=txt(src.clave||src.medicamentoClave||src.codigo||src.claveCpm||parent.clave||parent.medicamentoClave||parent.codigo);
+    if(!drug&&!key)return;
+    const total=Math.max(0,num(src.cantidadTratamientoTotal??src.totalUnidadesTratamiento??src.cantidadSolicitadaCalculada??src.totalTratamiento??src.cantidadSolicitada??parent.cantidadTratamientoTotal??parent.totalUnidadesTratamiento??parent.cantidadSolicitadaCalculada??parent.totalTratamiento??parent.cantidadSolicitada));
+    const received=Math.max(0,num(src.cantidadRecibidaAcumulada??src.cantidadSurtidaAcumulada??src.recibido??parent.cantidadRecibidaAcumulada??parent.cantidadSurtidaAcumulada??parent.recibido));
+    const explicit=Math.max(0,num(src.cantidadRestante??parent.cantidadRestante));
+    const remaining=explicit>0?explicit:Math.max(0,total-received);
+    const folio=txt(fvClosureTreatmentFolio(merged)||src.folio||src.folioPacienteAsignado||src.folioSolicitud||parent.folio||parent.folioPacienteAsignado||parent.folioSolicitud);
+    const service=txt(src.servicioSolicitanteActual||src.servicio||src.ultimoServicio||parent.servicioSolicitanteActual||parent.servicio||parent.ultimoServicio||p.ultimoServicio);
+    const updatedAt=src.ultimaSolicitudAt||src.updatedAt||src.createdAt||parent.ultimaSolicitudAt||parent.updatedAt||parent.createdAt||'';
+    raw.push({key,drug:drug||key,folio,service,total,received,remaining,closed:fvPatientCollectiveClosed(merged),updatedAt});
+  };
+  const treatments=Array.isArray(profile?.tratamientos)?profile.tratamientos:listValues(profile?.tratamientos);
+  for(const t of treatments)add(t,profile);
+  for(const o of justifiedOrders||[]){
+    if(!fvPatientOrderMatchesSelected(o,p))continue;
+    const items=Array.isArray(o.items)&&o.items.length?o.items:[o];
+    for(const it of items)add(it,o);
+  }
+  const map=new Map();
+  for(const row of raw){
+    const id=norm([row.folio,row.key||row.drug].join('|'))||norm([row.drug,row.service].join('|'));
+    const old=map.get(id),ot=Date.parse(old?.updatedAt||0)||0,nt=Date.parse(row.updatedAt||0)||0;
+    if(!old||nt>=ot)map.set(id,row);
+  }
+  return [...map.values()].sort((a,b)=>Number(a.closed)-Number(b.closed)||(Date.parse(b.updatedAt||0)||0)-(Date.parse(a.updatedAt||0)||0)||(a.drug||'').localeCompare(b.drug||'','es'));
+}
 function renderPatientDetail(message=''){
   const p=selectedPatient,panel=$('patientDetailPanel'),split=$('patientSplit');if($('patientViewPdf'))$('patientViewPdf').disabled=!p;if($('patientCloseCollective'))$('patientCloseCollective').disabled=!p;
-  if(!p){panel?.classList.add('hidden');split?.classList.add('detail-closed');$('patMoves').textContent='0';$('patMeds').textContent='0';$('patFolios').textContent='0';$('patPieces').textContent='0';if($('fvPatientCollectives'))$('fvPatientCollectives').innerHTML='';$('patientHistory').innerHTML='<tr><td colspan="5" class="empty">Sin paciente seleccionado.</td></tr>';return}
-  panel?.classList.remove('hidden');split?.classList.remove('detail-closed');const rows=patientRows.slice().sort((a,b)=>String(recordDate(b)).localeCompare(String(recordDate(a)))),meds=new Set(rows.map(r=>recordKey(r)||recordDrug(r)).filter(Boolean)),states=fvPatientCollectiveStates(),folios=new Set([...rows.map(r=>txt(r.folio)).filter(Boolean),...states.map(x=>x.folio)]),pieces=rows.reduce((s,r)=>s+recordPieces(r),0);
+  if(!p){panel?.classList.add('hidden');split?.classList.add('detail-closed');$('patMoves').textContent='0';$('patMeds').textContent='0';$('patFolios').textContent='0';$('patPieces').textContent='0';if($('fvPatientCollectives'))$('fvPatientCollectives').innerHTML='';if($('fvPatientAssignedMeds'))$('fvPatientAssignedMeds').innerHTML='<tr><td colspan="7" class="empty">Sin paciente seleccionado.</td></tr>';$('patientHistory').innerHTML='<tr><td colspan="5" class="empty">Sin paciente seleccionado.</td></tr>';return}
+  panel?.classList.remove('hidden');split?.classList.remove('detail-closed');
+  const rows=patientRows.slice().sort((a,b)=>String(recordDate(b)).localeCompare(String(recordDate(a)))),assigned=fvPatientAssignedMedications(),meds=new Set([...rows.map(r=>recordKey(r)||recordDrug(r)),...assigned.map(r=>r.key||r.drug)].filter(Boolean)),states=fvPatientCollectiveStates(),folios=new Set([...rows.map(r=>txt(r.folio)).filter(Boolean),...states.map(x=>x.folio),...assigned.map(x=>x.folio).filter(Boolean)]),pieces=rows.reduce((sum,r)=>sum+recordPieces(r),0);
   const patientInfo=[p.edad?`Edad ${esc(p.edad)}`:'',txt(p.sexo||p.genero)?`Sexo ${esc(p.sexo||p.genero)}`:'',p.numeroCama?`Cama ${esc(p.numeroCama)}`:'',p.medico?`Médico ${esc(p.medico)}`:'',p.cedula?`Cédula ${esc(p.cedula)}`:''].filter(Boolean).join(' · '),diagnosis=p.diagnostico?`<br><span style="color:var(--muted)"><b>Diagnóstico:</b> ${esc(p.diagnostico)}</span>`:'';$('patientSummary').innerHTML=`<b>${esc(p.nombre)}</b> ${fvPatientCensusBadge(p)} · Expediente ${esc(p.expediente||'—')} · Último servicio ${esc(p.ultimoServicio||'—')}${patientInfo?`<br><span style="color:var(--muted)">${patientInfo}</span>`:''}${diagnosis}${message?`<br><span class="tag warn">${esc(message)}</span>`:''}`;
   if($('fvPatientCollectives'))$('fvPatientCollectives').innerHTML=states.length?states.map(x=>{const meta=x.closureMeta,label=x.closed?(txt(meta?.label)||'CERRADO'):'ABIERTO';return`<div style="border:1px solid ${x.closed?'#fecaca':'#bbf7d0'};background:${x.closed?'#fff7f7':'#f7fff9'};border-radius:11px;padding:8px 10px"><b>${x.closed?'🔒':'🟢'} Folio ${esc(x.folio)} · ${esc(label)}</b><small style="display:block;color:var(--muted);margin-top:2px">${esc(x.medicamento||'Colectivo justificado')}${x.service?` · ${esc(x.service)}`:''}${x.closed&&meta?.by?` · Cerrado por ${esc(meta.by)}`:''}</small></div>`}).join(''):'<div class="notice">No se identificaron folios de colectivo justificado en el perfil sincronizado.</div>';
   $('patMoves').textContent=rows.length;$('patMeds').textContent=meds.size;$('patFolios').textContent=folios.size;$('patPieces').textContent=pieces.toLocaleString('es-MX');
-  $('patientHistory').innerHTML=rows.length?rows.map(r=>{const folio=txt(fvClosureCanonicalFolio(r)||r.folio),state=states.find(x=>norm(x.folio)===norm(folio));return`<tr><td>${esc(fmtDate(recordDate(r),true))}</td><td>${esc(recordDrug(r))}${state?.closed?'<br><span class="tag bad">🔒 CERRADO</span>':''}</td><td>${esc(recordService(r))}</td><td>${esc(folio||'—')}</td><td><b>${recordPieces(r)}</b></td></tr>`}).join(''):'<tr><td colspan="5" class="empty">Sin movimientos.</td></tr>';requestAnimationFrame(()=>drawLine($('chartPatient'),dailyAgg(rows),{color:'#2563eb'}))
+  if($('fvPatientAssignedMeds'))$('fvPatientAssignedMeds').innerHTML=assigned.length?assigned.map(r=>`<tr><td><span class="tag ${r.closed?'bad':'ok'}">${r.closed?'🔒 CERRADO':'🟢 ACTIVO'}</span></td><td><b>${esc(r.drug||r.key||'—')}</b>${r.key&&norm(r.key)!==norm(r.drug)?`<br><small>${esc(r.key)}</small>`:''}</td><td>${esc(r.folio||'—')}</td><td>${esc(r.service||'—')}</td><td><b>${r.total.toLocaleString('es-MX')}</b></td><td>${r.received.toLocaleString('es-MX')}</td><td><b>${r.remaining.toLocaleString('es-MX')}</b></td></tr>`).join(''):'<tr><td colspan="7" class="empty">No se encontraron medicamentos asignados para este paciente en el perfil sincronizado.</td></tr>';
+  $('patientHistory').innerHTML=rows.length?rows.map(r=>{const folio=txt(fvClosureCanonicalFolio(r)||r.folio),state=states.find(x=>norm(x.folio)===norm(folio));return`<tr><td>${esc(fmtDate(recordDate(r),true))}</td><td>${esc(recordDrug(r))}${state?.closed?'<br><span class="tag bad">🔒 CERRADO</span>':''}</td><td>${esc(recordService(r))}</td><td>${esc(folio||'—')}</td><td><b>${recordPieces(r)}</b></td></tr>`}).join(''):'<tr><td colspan="5" class="empty">Sin movimientos surtidos. Los medicamentos asignados se muestran arriba.</td></tr>';requestAnimationFrame(()=>drawLine($('chartPatient'),dailyAgg(rows),{color:'#2563eb'}))
 }
 function dailyAgg(rows){const m={};rows.forEach(r=>{const d=parseDate(recordDate(r));if(!d)return;const k=d.toISOString().slice(0,10);m[k]=(m[k]||0)+recordPieces(r)});return Object.entries(m).sort().slice(-30).map(([label,value])=>({label:label.slice(5),value}))}
 function aggregateConsumption(){const svc={},pat={},drug={};antibioticRows().filter(r=>withinPatientWindow(recordDate(r))).forEach(r=>{const pieces=recordPieces(r),s=recordService(r)||'Sin servicio',p=recordPatient(r)||'Sin paciente',f=recordFile(r),d=recordDrug(r)||'Sin medicamento',k=recordKey(r)||d;svc[s]??={name:s,pieces:0,patients:new Set(),drugs:new Set()};svc[s].pieces+=pieces;svc[s].patients.add(p);svc[s].drugs.add(k);const pk=p+'|'+f;pat[pk]??={name:p,file:f,service:s,pieces:0,drugs:new Set()};pat[pk].pieces+=pieces;pat[pk].service=s;pat[pk].drugs.add(k);drug[k]??={key:recordKey(r),name:d,pieces:0,services:new Set(),patients:new Set()};drug[k].pieces+=pieces;drug[k].services.add(s);drug[k].patients.add(p)});return{services:Object.values(svc),patients:Object.values(pat),drugs:Object.values(drug)}}
@@ -2963,5 +3050,33 @@ async function pull(){if(busy||navigator.onLine===false)return;busy=true;try{con
 setInterval(()=>{if(!document.hidden)pull()},5000);window.addEventListener('focus',pull);window.addEventListener('online',()=>setTimeout(pull,300));setTimeout(pull,1300);window.mxPullCollectiveClosuresV146=pull;
 })();
 </script>
-</body>
+<script id="mx-fv-antibiotic-stock-engine-v1">
+(function(){
+'use strict';
+if(window.__mxFvAntibioticStockV1)return;window.__mxFvAntibioticStockV1=true;
+const T=v=>String(v==null?'':v).trim(),N=v=>{const n=Number(v);return Number.isFinite(n)?n:0},K=v=>T(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' '),E=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let state={at:0,stocks:[],controls:{reserve:0},treatments:[],rows:[]},busy=null;
+function cfg(){try{return window.mxViewerGetCfg?.()||{db:'',branch:'HGAM'}}catch(_e){return{db:'',branch:'HGAM'}}}
+function url(path){const base=T(cfg().db).replace(/\.json\/?$/i,'').replace(/\/+$/,'');if(!base)throw new Error('Esperando conexión con Macroxel Hospitales.');const p=String(path||'').startsWith('/')?String(path):'/'+String(path||'');return base+p+'.json'}
+async function get(path){const r=await fetch(url(path)+(String(path).includes('?')?'&':'?')+'ts='+Date.now(),{cache:'no-store'});if(!r.ok)throw new Error('Firebase HTTP '+r.status);return r.json()}
+function branch(){return encodeURIComponent(T(cfg().branch||'HGAM').toUpperCase()||'HGAM')}
+function dk(v){const d=v instanceof Date?v:new Date(v||0);if(Number.isNaN(d.getTime()))return'';return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function td(){return dk(new Date())}function yd(){const d=new Date();d.setDate(d.getDate()-1);return dk(d)}
+function isAbxMeta(x={}){const c=K(x.clasificacion||x.clasif||x.tipo||x.departamento),r=K(x.restriccion||''),d=K(x.descripcion||x.nombre||'');return x.antibiotico===true||x.isAntibiotico===true||c.includes('ANTIBIOT')||c.includes('ANTIMICROB')||['ACCESO','VIGILANCIA','RESERVA'].includes(c)||r.includes('ANTIBIOT')||d.includes('ANTIBIOTICO')}
+function closed(t={}){const st=K(t.estadoTratamiento||t.ultimaSolicitudEstado||t.estado||t.status);return t.activo===false||t.tratamientoActivo===false||t.cerrado===true||/CERRAD|CANCEL|FINALIZADO|COMPLETADO/.test(st)}
+function rowFrom(patient={},t={}){const key=K(t.clave||t.medicamentoClave||t.codigo||t.descripcion||t.medicamento);if(!key)return null;const total=Math.max(0,N(t.cantidadTratamientoTotal||t.totalUnidadesTratamiento||t.cantidadSolicitadaCalculada||t.totalTratamiento||t.cantidadSolicitada)),received=Math.max(0,N(t.cantidadRecibidaAcumulada||t.cantidadSurtidaAcumulada||t.recibido)),explicit=Math.max(0,N(t.cantidadRestante)),remaining=explicit>0?explicit:Math.max(0,total-received),activity=t.ultimaSolicitudAt||t.lastRequestAt||t.updatedAt||t.finalizedAt||t.createdAt||patient.updatedAt||patient.ultimaFecha||'';return{key,total,received,remaining,activity,day:dk(activity),closed:closed(t),patient:T(patient.nombre||patient.paciente||t.paciente),folio:T(t.folio||t.folioPacienteAsignado||t.folioSolicitud||patient.folioAsignado)}}
+function values(v){return Array.isArray(v)?v:(v&&typeof v==='object'?Object.values(v):[])}
+function collectPatientList(root){const ps=Array.isArray(root?.patients)?root.patients:(Array.isArray(root)?root:values(root?.patients||root)),out=[];for(const p of ps){if(!p||typeof p!=='object')continue;for(const t of values(p.tratamientos)){const r=rowFrom(p,t);if(r)out.push(r)}}return out}
+function collectOrders(root){const out=[];for(const o of values(root)){if(!o||typeof o!=='object'||!K(o.tipo||o.tipoDocumento||o.type).includes('JUSTIFICADO'))continue;const items=Array.isArray(o.items)&&o.items.length?o.items:[o];for(const it of items){const r=rowFrom(o,{...o,...it,clave:it.clave||o.medicamentoClave,medicamento:it.descripcion||it.medicamento||o.medicamento});if(r)out.push(r)}}return out}
+function dedupe(rows){const m=new Map();for(const r of rows){const id=[r.patient,r.key,r.folio].map(K).join('|'),prev=m.get(id),a=Date.parse(r.activity||0)||0,b=Date.parse(prev?.activity||0)||0;if(!prev||a>=b)m.set(id,r)}return[...m.values()]}
+function commitment(key){const k=K(key),open=state.treatments.filter(r=>r.key===k&&!r.closed&&r.remaining>0),today=td(),yest=yd(),base=open.some(r=>r.day===today)?today:(open.some(r=>r.day===yest)?yest:''),active=base?open.filter(r=>r.day===base):[],committed=active.reduce((sum,r)=>sum+r.remaining,0),avg=active.length?active.reduce((sum,r)=>sum+(r.total||r.remaining),0)/active.length:0;return{base,active,committed,avg,stale:open.length-active.length}}
+function buildRows(){const out=[];for(const s of state.stocks){if(!isAbxMeta(s))continue;const key=K(s.clave),existence=Math.max(0,N(s.existencia??s.e??s.stock??s.total)),c=commitment(key),reserve=Math.max(0,N(state.controls.reserve)),after=Math.max(0,existence-c.committed),free=Math.max(0,after-reserve),estimated=c.avg>0?Math.floor(free/c.avg):null,cannot=free<=0||(c.avg>0&&free<c.avg);out.push({key,clave:T(s.clave),descripcion:T(s.descripcion||s.nombre||s.clave),existence,...c,reserve,after,free,estimated,cannot})}state.rows=out.sort((a,b)=>b.existence-a.existence||a.descripcion.localeCompare(b.descripcion,'es'));return state.rows}
+async function load(force=false){if(!force&&state.at&&Date.now()-state.at<60000&&state.rows.length)return state;if(busy)return busy;busy=(async()=>{const b=branch();const [full,controls,patients,orders]=await Promise.all([get('/inventory_visor/'+b+'/products').catch(()=>({})),get('/ecosystem_controls/'+b).catch(()=>({})),get('/antibiotic_patient_list/'+b).catch(()=>({})),get('/service_orders/'+b).catch(()=>({}))]);const source=Array.isArray(full?.items)?full.items:(Array.isArray(full?.products)?full.products:(Array.isArray(full)?full:values(full?.items||full?.products||full)));state.stocks=source.filter(x=>x&&typeof x==='object').map(r=>({clave:T(r.clave??r.c??r.codigo??r.csg),descripcion:T(r.descripcion??r.nombre??r.description),existencia:Math.max(0,N(r.existencia??r.e??r.stock??r.total)),clasificacion:T(r.clasificacion??r['clasificación']??r.CLASIFICACION??r.CLASIFICACIÓN),restriccion:T(r.restriccion??r['restricción']??r.RESTRICCION??r.RESTRICCIÓN),departamento:T(r.departamento??r.DEPARTAMENTO),antibiotico:r.antibiotico===true||r.isAntibiotico===true||r.ANTIBIOTICO===true})).filter(r=>K(r.clave));state.controls={reserve:Math.max(0,Math.floor(N(controls?.colectivosReservaPiezas)||0))};state.treatments=dedupe([...collectPatientList(patients),...collectOrders(orders)]);state.at=Date.now();buildRows();return state})().finally(()=>busy=null);return busy}
+function filterRows(q=''){q=K(q);return q?state.rows.filter(r=>K(r.clave).includes(q)||K(r.descripcion).includes(q)):state.rows}
+function render(){const body=document.getElementById('fvAbxStockBody'),status=document.getElementById('fvAbxStockStatus'),alert=document.getElementById('fvAbxStockAlert');if(!body)return;const rows=filterRows(document.getElementById('fvAbxStockQ')?.value),danger=state.rows.filter(r=>r.cannot),totalExist=state.rows.reduce((x,r)=>x+r.existence,0),totalCommitted=state.rows.reduce((x,r)=>x+r.committed,0),totalFree=state.rows.reduce((x,r)=>x+r.free,0);document.getElementById('fvAbxStockProducts').textContent=state.rows.length.toLocaleString('es-MX');document.getElementById('fvAbxStockExistence').textContent=Math.round(totalExist).toLocaleString('es-MX');document.getElementById('fvAbxStockCommitted').textContent=Math.round(totalCommitted).toLocaleString('es-MX');document.getElementById('fvAbxStockFree').textContent=Math.round(totalFree).toLocaleString('es-MX');body.innerHTML=rows.length?rows.map(r=>`<tr class="${r.cannot?'fv-abx-danger':''}"><td><b>${E(r.clave)}</b></td><td>${E(r.descripcion)}</td><td><span class="fv-abx-num">${Math.round(r.existence)}</span></td><td><span class="fv-abx-num">${Math.round(r.committed)}</span><span class="fv-abx-mini">${r.active.length} colectivo(s) activo(s) · ${r.base||'sin actividad hoy/ayer'}</span></td><td><span class="fv-abx-num">${Math.round(r.free)}</span></td><td>${r.estimated==null?'—':r.estimated}</td><td><span class="fv-abx-state ${r.cannot?'bad':'ok'}">${r.cannot?'🔴 SIN CAPACIDAD':'🟢 PUEDE ABRIR COLECTIVO'}</span></td></tr>`).join(''):'<tr><td colspan="7" class="empty">Sin coincidencias.</td></tr>';if(status)status.textContent=`${state.rows.length} antibiótico(s) con existencia · compromiso basado en colectivos activos de hoy; si no hay actividad hoy, se toma ayer.`;if(alert){if(danger.length){alert.textContent=`⚠️ ${danger.length} antibiótico(s) no tienen capacidad estimada para abrir otro Colectivo justificado.`;alert.classList.remove('hidden')}else alert.classList.add('hidden')}}
+async function open(force=false){const status=document.getElementById('fvAbxStockStatus');try{if(state.rows.length)render();if(!state.rows.length&&status)status.textContent='Cargando inventario y compromisos…';await load(force);render()}catch(e){if(status)status.textContent='No fue posible actualizar la existencia de antibióticos: '+(e?.message||e)}}
+window.mxFvAntibioticStockOpen=open;window.mxFvAntibioticStockRender=render;window.mxFvAntibioticStockInvalidate=()=>{state.at=0};
+document.getElementById('fvAbxStockQ')?.addEventListener('input',render);document.getElementById('fvAbxStockRefresh')?.addEventListener('click',()=>open(true));window.addEventListener('mx-viewer-refresh-now',()=>{state.at=0;if(document.documentElement.dataset.mxFvActiveView==='antibioticStock')open(true)});window.addEventListener('mx-viewer-config-changed',()=>{state.at=0;state.rows=[]});
+})();
+</script></body>
 </html>
