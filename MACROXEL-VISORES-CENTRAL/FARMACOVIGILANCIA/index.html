@@ -1877,9 +1877,28 @@ function fvPatientProfileForSelected(){
   const p=selectedPatient;if(!p)return null;
   return patientCatalogAll.find(x=>x.key===p.key)||patientCatalogAll.find(x=>norm(x.nombre||x.paciente)===norm(p.nombre)&&(!p.expediente||!x.expediente||norm(x.expediente)===norm(p.expediente)))||null
 }
+function fvPatientServiceClosedState(row={}){
+  const st=norm(row?.cierreServicioEstado||row?.estadoTratamiento||row?.estadoCierreServicio);
+  return row?.cierreServicio===true||row?.canceladoPorServicio===true||['CERRADO_SERVICIO','CERRADO POR SERVICIO','CLOSED_SERVICE'].includes(st)||(row?.cierreServicio===true&&['CERRADO','CLOSED','FINALIZADO'].includes(st))
+}
+function fvPatientFvClosedState(row={}){
+  const st=norm(row?.cierreFarmacovigilanciaEstado||row?.estadoFarmacovigilancia||row?.farmacovigilanciaEstadoFinal);
+  return row?.cierreFarmacovigilancia===true||row?.farmacovigilanciaFinalizado===true||['CERRADO','CLOSED','FINALIZADO'].includes(st)
+}
+function fvPatientClosureMeta(row={}){
+  if(fvPatientServiceClosedState(row)){
+    const service=txt(row?.servicioCierreNombre||row?.cierreServicioNombre||row?.servicioSolicitanteActual||row?.servicio);
+    const by=txt(row?.servicioCerradoPor||row?.cierreServicioPor||row?.cierreServicioValidadoPor);
+    const at=txt(row?.servicioCerradoAt||row?.cierreServicioAt||row?.cierreServicioValidadoAt);
+    return{closed:true,type:'SERVICIO',service,by,at,label:`CERRADO POR EL SERVICIO${service?' '+service:''}`}
+  }
+  const by=txt(row?.farmacovigilanciaCerradoPor||row?.validacionFarmacovigilancia?.cerradoPor||row?.validacionFarmacovigilancia?.revisadoPor||row?.farmacovigilanciaValidadoPor);
+  const at=txt(row?.farmacovigilanciaCerradoAt||row?.validacionFarmacovigilancia?.cerradoAt||row?.validacionFarmacovigilancia?.revisadoAt||row?.farmacovigilanciaValidadoAt);
+  return{closed:fvPatientFvClosedState(row),type:'FARMACOVIGILANCIA',service:'',by,at,label:'CERRADO POR FARMACOVIGILANCIA'}
+}
 function fvPatientCollectiveClosed(row={}){
-  if(mxFvClosedState(row)||row.activo===false||row.tratamientoActivo===false)return true;
-  const st=norm(row.estadoTratamiento||row.estadoCierreServicio||row.cierreServicioEstado||row.cierreFarmacovigilanciaEstado);
+  if(fvPatientServiceClosedState(row)||fvPatientFvClosedState(row)||row?.activo===false||row?.tratamientoActivo===false)return true;
+  const st=norm(row?.estadoTratamiento||row?.estadoCierreServicio||row?.cierreServicioEstado||row?.cierreFarmacovigilanciaEstado);
   return ['CERRADO','CLOSED','CERRADO_SERVICIO','CERRADO POR SERVICIO','FINALIZADO_TRATAMIENTO'].includes(st)
 }
 function fvPatientCollectiveStates(){
@@ -1888,7 +1907,7 @@ function fvPatientCollectiveStates(){
   const profile=fvPatientProfileForSelected(),treatments=Array.isArray(profile?.tratamientos)?profile.tratamientos:(profile?.tratamientos&&typeof profile.tratamientos==='object'?Object.values(profile.tratamientos):[]);for(const t of treatments)add(t,'TRATAMIENTO');
   for(const o of justifiedOrders||[]){if(mxFvPdfPatientMatches(o,p))add(o,'PEDIDO')}
   for(const r of patientRows||[]){const kind=norm(r.tipo_doc||r.tipo||'COLECTIVO JUSTIFICADO');if(kind&&!kind.includes('JUSTIFICADO')&&!kind.includes('COLECTIVO'))continue;add(r,'HISTORIAL')}
-  return [...groups.values()].map(g=>{const src=g.closure||g.latest||{},meta=g.closed?mxFvClosureMeta(src):null,med=txt(src.medicamento||src.descripcion||(Array.isArray(src.items)?src.items[0]?.descripcion:'')||src.clave||'Colectivo justificado'),service=txt(src.servicioSolicitanteActual||src.ultimoServicio||src.servicio),remaining=Math.max(0,num(src.cantidadRestante)),total=Math.max(0,num(src.cantidadTratamientoTotal||src.totalUnidadesTratamiento||src.cantidadSolicitadaCalculada));return{...src,folio:g.folio,medicamento:med,service,closed:g.closed,closureMeta:meta,remaining,total,sources:g.sources,lastMovementAt:g.latestAt}}).sort((a,b)=>Number(a.closed)-Number(b.closed)||(b.lastMovementAt-a.lastMovementAt)||a.folio.localeCompare(b.folio,'es'))
+  return [...groups.values()].map(g=>{const src=g.closure||g.latest||{},meta=g.closed?fvPatientClosureMeta(src):null,med=txt(src.medicamento||src.descripcion||(Array.isArray(src.items)?src.items[0]?.descripcion:'')||src.clave||'Colectivo justificado'),service=txt(src.servicioSolicitanteActual||src.ultimoServicio||src.servicio),remaining=Math.max(0,num(src.cantidadRestante)),total=Math.max(0,num(src.cantidadTratamientoTotal||src.totalUnidadesTratamiento||src.cantidadSolicitadaCalculada));return{...src,folio:g.folio,medicamento:med,service,closed:g.closed,closureMeta:meta,remaining,total,sources:g.sources,lastMovementAt:g.latestAt}}).sort((a,b)=>Number(a.closed)-Number(b.closed)||(b.lastMovementAt-a.lastMovementAt)||a.folio.localeCompare(b.folio,'es'))
 }
 function fvPatientCloseCandidates(){return fvPatientCollectiveStates()}
 function fvPatientCloseHide(){$('fvPatientCloseModal')?.classList.add('hidden');fvPatientCloseChoices=[]}
