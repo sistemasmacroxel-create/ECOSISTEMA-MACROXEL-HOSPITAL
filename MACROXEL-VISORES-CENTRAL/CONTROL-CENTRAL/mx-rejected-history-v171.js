@@ -72,7 +72,7 @@ function render(){
  tb.innerHTML=rows.map(function(x){
   var r=x.rec||{},who=txt(r.fullName||r.name||r.nombre||'Sin nombre'),phone=txt(r.phone||r.telefono||'—'),mail=txt(r.email||r.correo||'—'),dev=txt(r.deviceId||x.recordKey);
   var state=x.state==='authorized'?'AUTORIZADO DESPUÉS':x.state==='rerequest'?'VOLVIÓ A SOLICITAR':'RECHAZADO',cls=x.state==='authorized'?'authorized':x.state==='rerequest'?'rerequest':'rejected';
-  var act=x.state==='rerequest'?'<button class="btn ok" data-vrej-grant>✅ Autorizar ahora</button><button class="btn danger" data-vrej-keep>✖ Mantener rechazo</button>':'<small style="color:#64748b">Sin nueva solicitud</small>';
+  var act=x.state==='authorized'?'<small style="color:#166534;font-weight:900">Ya autorizado</small>':'<button class="btn ok" data-vrej-grant>✅ Activar</button>'+(x.state==='rerequest'?'<button class="btn danger" data-vrej-keep>✖ Mantener rechazo</button>':'');
   return '<tr data-vrej-key="'+esc(x.recordKey)+'" data-vrej-app="'+esc(x.appCode)+'" data-vrej-history="'+esc(x.historyId||'')+'"><td class="mx-vauth-person"><b>'+esc(who)+'</b><small>'+esc(phone)+'</small><small>'+esc(mail)+'</small></td><td class="mx-vauth-app"><b>'+esc(x.appName)+'</b><small>'+esc(x.app&&x.app.version||r.version||'')+'</small></td><td class="mx-vauth-device"><code>'+esc(dev)+'</code><small>'+esc(r.platform||'')+'</small></td><td><b>'+esc(fmt(x.rejectedAt))+'</b><small style="display:block;color:#64748b">'+esc(x.rejectedBy||'Control Central')+'</small></td><td>'+(x.reRequestAt?'<b>'+esc(fmt(x.reRequestAt))+'</b><span class="mx-vrej-new">Nueva solicitud recibida</span>':'—')+'</td><td><span class="mx-vrej-state '+cls+'">'+state+'</span>'+(x.approvedAt?'<small style="display:block;margin-top:3px;color:#166534">'+esc(fmt(x.approvedAt))+'</small>':'')+'</td><td><div class="mx-vrej-actions">'+act+'</div></td></tr>';
  }).join('');
 }
@@ -105,19 +105,32 @@ async function markHistory(recordKey,c,hid,patchData){
 async function authorizeAgain(recordKey,c,hid){
  var br=branch(),path='/viewer_licenses/'+encodeURIComponent(br)+'/'+encodeURIComponent(recordKey),rec=await get(path),a=apps(rec)[c];
  if(!rec||!a)throw new Error('Solicitud no encontrada.');
- var rm=Date.parse(a.maintenanceAt||0)||0,rr=txt(a.reRequestAt||a.lastRequestAt||a.updatedAt),rms=Date.parse(rr||0)||0;
- if(!pending(a)&&!(maintenance(a)&&rms>rm+500))throw new Error('No hay una nueva solicitud para revisar.');
- if(maintenance(a)){
-  var all=apps(rec),now=new Date().toISOString();all[c]=Object.assign({},a,{status:'pending',active:false,maintenanceMode:false,maintenanceMessage:'',manualValidationRequired:true,autoLinkBlocked:true,manualReviewRequested:true,lastRequestAt:rr||now,updatedAt:now});
-  var next=Object.assign({},rec,{applications:all,status:rec.active===true?'active':'pending',maintenanceMode:false,maintenanceMessage:'',pendingAppCode:c,pendingAppName:label(c),manualValidationRequired:true,lastRequestAt:rr||now,updatedAt:now});
-  await put(path,next);
- }
- await markHistory(recordKey,c,hid,{status:'re_requested_pending_review',reRequestAt:rr||new Date().toISOString(),updatedAt:new Date().toISOString()});
+ if(active(a)){await markHistory(recordKey,c,hid,{status:'authorized_after_rejection',authorizedAfterRejectionAt:txt(a.approvedAt||new Date().toISOString()),updatedAt:new Date().toISOString()});await refresh();return}
+ var all=apps(rec),now=new Date().toISOString(),rr=txt(a.reRequestAt||a.lastRequestAt||a.updatedAt||now);
+ all[c]=Object.assign({},a,{status:'pending',active:false,maintenanceMode:false,maintenanceMessage:'',manualValidationRequired:true,autoLinkBlocked:true,manualReviewRequested:true,lastRequestAt:rr||now,reRequestAt:rr||now,requestType:'manual_activation_from_rejected_history',updatedAt:now});
+ var anyActive=Object.keys(all).some(function(k){return k!==c&&active(all[k])});
+ var next=Object.assign({},rec,{applications:all,status:anyActive?'active':'pending',active:anyActive,maintenanceMode:false,maintenanceMessage:'',pendingAppCode:c,pendingAppName:label(c),manualValidationRequired:true,lastRequestAt:rr||now,updatedAt:now});
+ await put(path,next);
+ await markHistory(recordKey,c,hid,{status:'manual_activation_pending',reRequestAt:rr||now,manualActivationRequestedAt:now,updatedAt:now});
  if(typeof window.mxControlCentralViewerAuthResume==='function')await window.mxControlCentralViewerAuthResume();
- await new Promise(function(resolve){setTimeout(resolve,180)});
+ await new Promise(function(resolve){setTimeout(resolve,220)});
  var rows=document.querySelectorAll('#mxViewerAuthBodyV167 tr[data-mx-vauth-key]');
- for(var i=0;i<rows.length;i++){if(rows[i].dataset.mxVauthKey===recordKey&&rows[i].dataset.mxVauthApp===c){var b=rows[i].querySelector('[data-mx-vauth-grant]');if(b){b.click();setTimeout(refresh,900);return}}}
- throw new Error('La solicitud pasó a pendientes. Pulsa Actualizar y autorízala desde la tabla superior.');
+ for(var i=0;i<rows.length;i++){
+  if(rows[i].dataset.mxVauthKey===recordKey&&rows[i].dataset.mxVauthApp===c){
+   var btn=rows[i].querySelector('[data-mx-vauth-grant]');
+   if(btn){btn.click();setTimeout(refresh,900);return}
+  }
+ }
+ if(typeof window.mxControlCentralViewerAuthResume==='function')await window.mxControlCentralViewerAuthResume();
+ await new Promise(function(resolve){setTimeout(resolve,220)});
+ rows=document.querySelectorAll('#mxViewerAuthBodyV167 tr[data-mx-vauth-key]');
+ for(var j=0;j<rows.length;j++){
+  if(rows[j].dataset.mxVauthKey===recordKey&&rows[j].dataset.mxVauthApp===c){
+   var btn2=rows[j].querySelector('[data-mx-vauth-grant]');
+   if(btn2){btn2.click();setTimeout(refresh,900);return}
+  }
+ }
+ throw new Error('La solicitud quedó preparada para autorización. Vuelve a entrar a Activar visores.');
 }
 async function keepRejected(recordKey,c,hid){
  var br=branch(),path='/viewer_licenses/'+encodeURIComponent(br)+'/'+encodeURIComponent(recordKey),rec=await get(path),a=apps(rec)[c];
@@ -143,6 +156,18 @@ document.addEventListener('click',function(e){
 document.addEventListener('input',function(e){if(e.target&&e.target.id==='mxViewerAuthSearchV167')render()},true);
 window.addEventListener('mx-viewer-config-changed',function(){cache=[];setTimeout(refresh,300)});
 window.addEventListener('mx-operational-sync',function(e){if(e&&e.detail&&e.detail.changed&&e.detail.changed.indexOf('activations')>=0)setTimeout(refresh,100)});
-function boot(){panel();refresh();timer=setInterval(function(){if(!document.hidden)refresh()},6000)}
+function refreshAll(){
+ refresh();
+ try{if(typeof window.mxControlCentralViewerAuthResume==='function')window.mxControlCentralViewerAuthResume()}catch(e){}
+}
+document.addEventListener('click',function(e){
+ var sem=e.target.closest&&e.target.closest('#mxConnectionPill');
+ if(sem){setTimeout(refreshAll,80);return}
+ var tab=e.target.closest&&e.target.closest('#tabViewerAuth');
+ if(tab)setTimeout(refreshAll,80);
+},true);
+window.addEventListener('mx-viewer-refresh-now',function(){setTimeout(refreshAll,80)});
+window.addEventListener('online',function(){setTimeout(refreshAll,120)});
+function boot(){panel();refreshAll();timer=setInterval(function(){if(!document.hidden)refresh()},6000)}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else setTimeout(boot,0);
 })();
