@@ -695,7 +695,7 @@ body.mx-module-open-v103 .wrap{max-width:none!important;width:100%!important;pad
 .mx-vauth-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:11px}
 .mx-vauth-head h3{margin:0;color:#12395f;font-size:18px}.mx-vauth-head p{margin:4px 0 0;color:#64748b;font-size:10px;font-weight:700;max-width:720px}
 .mx-vauth-fixed{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border-radius:999px;background:#eff6ff;border:1px solid #93c5fd;color:#1e3a8a;font-size:10px;font-weight:950;white-space:nowrap}
-.mx-vauth-tools{display:grid;grid-template-columns:minmax(180px,1fr) auto;gap:8px;align-items:end;margin:0 0 9px}
+.mx-vauth-tools{display:grid;grid-template-columns:minmax(180px,1fr);gap:8px;align-items:end;margin:0 0 9px}
 .mx-vauth-tools label{display:block;font-size:9px;font-weight:900;color:#475569;margin-bottom:4px}.mx-vauth-tools input{width:100%;min-height:38px;border:1px solid #cbd5e1;border-radius:10px;padding:8px 10px}
 .mx-vauth-status{margin:0 0 9px;padding:8px 10px;border:1px solid #dbeafe;border-radius:10px;background:#f8fbff;color:#475569;font-size:10px;font-weight:800}.mx-vauth-status.ok{background:#f0fdf4;border-color:#bbf7d0;color:#166534}.mx-vauth-status.bad{background:#fef2f2;border-color:#fecaca;color:#991b1b}
 .mx-vauth-table table{min-width:900px}.mx-vauth-table th{font-size:9px;white-space:normal;line-height:1.15}.mx-vauth-table td{font-size:10px;vertical-align:top}.mx-vauth-person b,.mx-vauth-app b{display:block;color:#12395f}.mx-vauth-person small,.mx-vauth-app small,.mx-vauth-device small{display:block;color:#64748b;margin-top:2px;line-height:1.25}.mx-vauth-device code{display:block;max-width:235px;white-space:normal;overflow-wrap:anywhere;font-size:9px}.mx-vauth-actions{display:flex;gap:6px;flex-wrap:wrap;min-width:265px}.mx-vauth-grant{min-width:132px;background:#166534!important;color:#fff!important;border-color:#166534!important}.mx-vauth-reject{min-width:118px;background:#b91c1c!important;color:#fff!important;border-color:#b91c1c!important}.mx-vauth-empty{text-align:center;padding:25px!important;color:#64748b}
@@ -1270,7 +1270,6 @@ body.mx-auth-blue-flash-v167::after{content:"";position:fixed;inset:0;z-index:21
   </div>
   <div class="mx-vauth-tools">
     <div><label>BUSCAR SOLICITUD</label><input id="mxViewerAuthSearchV167" autocomplete="off" placeholder="Nombre, visor, teléfono, correo o dispositivo..." type="search"/></div>
-    <button class="btn" id="mxViewerAuthRefreshV167" type="button">🔄 Actualizar</button>
   </div>
   <div class="mx-vauth-status" id="mxViewerAuthStatusV167">Consultando solicitudes pendientes…</div>
   <div class="table-wrap mx-vauth-table"><table><thead><tr><th>Solicitante</th><th>Visor solicitado</th><th>Dispositivo</th><th>Solicitud</th><th>Vigencia</th><th>Acción</th></tr></thead><tbody id="mxViewerAuthBodyV167"><tr><td class="mx-vauth-empty" colspan="6">Consultando solicitudes…</td></tr></tbody></table></div>
