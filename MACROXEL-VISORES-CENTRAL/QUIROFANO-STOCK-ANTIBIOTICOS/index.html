@@ -106,7 +106,7 @@ html.mx-qx-locked body{overflow:hidden!important}#mxQxActivation{position:fixed;
 <div id="mxQxActivation" aria-modal="true" role="dialog"><div class="card"><div class="head"><h2>Activación · Servicio Quirófano</h2><div class="sub">Solicita acceso a Macroxel Hospitales. La autorización se realiza desde Control Central.</div></div><div class="body"><label>Nombre completo</label><input id="mxQxName" autocomplete="name"><label>Teléfono</label><input id="mxQxPhone" autocomplete="tel" inputmode="tel"><label>Correo electrónico</label><input id="mxQxEmail" autocomplete="email" type="email"><div id="mxQxState" class="state">Validando activación…</div><div class="actions"><button id="mxQxValidate" class="secondary" type="button">Validar</button><button id="mxQxSubmit" class="primary" type="button">Enviar solicitud</button></div><div class="hint">Este visor se enlaza automáticamente al Sistema Principal. No muestra ni solicita la URL de Firebase.</div></div></div></div>
 <script id="mx-qx-activation-runtime-v1">
 (()=>{'use strict';
-const CONTROL_DB=(window.mxBoundOperationalDb?.()||''),APP_CODE='MACROXEL_QUIROFANO_STOCK',APP_NAME='Servicio Quirófano · Stock de Antibióticos',VERSION='1.0.210';
+const CONTROL_DB=(window.mxBoundOperationalDb?.()||''),APP_CODE='MACROXEL_QUIROFANO_STOCK',APP_NAME='Servicio Quirófano · Stock de Antibióticos',VERSION='1.0.211';
 const $=id=>document.getElementById(id),txt=v=>String(v==null?'':v).trim(),clean=v=>txt(v).replace(/\.json\/?$/i,'').replace(/\/+$/,'');
 const keyOf=v=>txt(v).replace(/[.#$\[\]\/]/g,'_');
 const validSystem=v=>{const x=txt(v).toUpperCase();return /^MACROXEL-[A-Z0-9_-]{4,}$/.test(x)?x:''};
