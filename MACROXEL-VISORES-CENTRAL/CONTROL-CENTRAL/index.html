@@ -3,6 +3,21 @@
 <!-- MACROXEL TRANSFERENCIAS v1.0.1 · Archivo autónomo para GitHub Pages -->
 <html lang="es">
 <head>
+<script id="mx-operational-route-bootstrap-v1212">
+(function(){'use strict';
+  if(window.mxBoundOperationalDb)return;
+  const LICENSE_HOST='licenciasmacroxel-default-rtdb.firebaseio.com';
+  const routeKey='mx_route_operational_db_v1212::'+location.origin+location.pathname.replace(/\/index\.html?$/i,'/');
+  const clean=v=>String(v||'').trim().replace(/\.json\/?$/i,'').replace(/\/+$/,'');
+  const valid=v=>{try{const u=new URL(clean(v)),h=u.hostname.toLowerCase();return u.protocol==='https:'&&/(?:firebaseio\.com|firebasedatabase\.app)$/i.test(h)&&h!==LICENSE_HOST?clean(v):''}catch(_e){return''}};
+  let q='';try{const p=new URLSearchParams(location.search);q=valid(p.get('mxDb')||p.get('firebase')||p.get('db')||'')}catch(_e){}
+  if(q){try{localStorage.setItem(routeKey,q)}catch(_e){}}
+  let saved='';try{saved=valid(localStorage.getItem(routeKey)||'')}catch(_e){}
+  window.mxBoundOperationalDb=()=>q||saved;
+  window.mxRouteIsolationKey=routeKey;
+})();
+</script>
+
 <meta name="mx-storage-isolation" content="v1.0.139:transferencias">
 
 
@@ -1523,8 +1538,8 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 /* ===== MACROXEL CANONICAL SOURCE: mx-maintenance-guard-v123 ===== */
 (function(){'use strict';
 if(window.__mxMaintenanceGuardV123)return;window.__mxMaintenanceGuardV123=true;
-const CONTROL_DB='https://ecosistema-macroxel-default-rtdb.firebaseio.com';
-const CONTROL_HOST='ecosistema-macroxel-default-rtdb.firebaseio.com';
+const CONTROL_DB=(window.mxBoundOperationalDb?.()||'');
+const CONTROL_HOST=(()=>{try{return new URL(window.mxBoundOperationalDb?.()||'').hostname.toLowerCase()}catch(_e){return''}})();
 const LICENSE_HOST='licenciasmacroxel-default-rtdb.firebaseio.com';
 const APP_CODE='MACROXEL_TRANSFERENCIAS';
 const STATE_KEY='mx_maintenance_state_v123';
@@ -1582,8 +1597,8 @@ function physicalDeviceKey(){
 
 function deviceId(){return window.mxDeviceIdentityV2?.deviceId?.()||('MACROXEL-DISPOSITIVO-V2-'+hash(fingerprint()+Date.now()+Math.random())+hash(Math.random()+fingerprint()))}
 function keyOf(v){return txt(v).replace(/[.#$\[\]\/]/g,'_')}
-function code(v){const n=norm(v);if(n.includes('SURTIDO')&&n.includes('COLECTIVO'))return'SURTIDO_COLECTIVOS';if(n.includes('TRANSFER'))return'TRANSFERENCIAS';if(n.includes('EXISTENCIA'))return'EXISTENCIAS';if(n.includes('FARMACOVIGILANCIA'))return'FARMACOVIGILANCIA';if(n.includes('COLECTIVO'))return'COLECTIVOS';if(n.includes('CADUC')||n.includes('ANALISIS')||n.includes('ANALITICA'))return'ANALISIS_SISTEMA';if(n.includes('ADMINISTRADOR'))return'ADMINISTRADOR';return n||'VISOR'}
-function label(v){const c=code(v);return{TRANSFERENCIAS:'MACROXEL Control Central Farmacia',EXISTENCIAS:'MACROXEL Existencias',COLECTIVOS:'MACROXEL Colectivos',FARMACOVIGILANCIA:'MACROXEL Farmacovigilancia',SURTIDO_COLECTIVOS:'MACROXEL Surtido Colectivos',ANALISIS_SISTEMA:'MACROXEL Análisis Sistema',ADMINISTRADOR:'MACROXEL Administrador'}[c]||txt(v)||'MACROXEL Visor'}
+function code(v){const n=norm(v);if(n.includes('QUIROFANO'))return'MACROXEL_QUIROFANO_STOCK';if(n.includes('SURTIDO')&&n.includes('COLECTIVO'))return'SURTIDO_COLECTIVOS';if(n.includes('TRANSFER'))return'TRANSFERENCIAS';if(n.includes('EXISTENCIA'))return'EXISTENCIAS';if(n.includes('FARMACOVIGILANCIA'))return'FARMACOVIGILANCIA';if(n.includes('COLECTIVO'))return'COLECTIVOS';if(n.includes('CADUC')||n.includes('ANALISIS')||n.includes('ANALITICA'))return'ANALISIS_SISTEMA';if(n.includes('ADMINISTRADOR'))return'ADMINISTRADOR';return n||'VISOR'}
+function label(v){const c=code(v);return{TRANSFERENCIAS:'MACROXEL Control Central Farmacia',EXISTENCIAS:'MACROXEL Existencias',COLECTIVOS:'MACROXEL Colectivos',FARMACOVIGILANCIA:'MACROXEL Farmacovigilancia',SURTIDO_COLECTIVOS:'MACROXEL Surtido Colectivos',ANALISIS_SISTEMA:'MACROXEL Análisis Sistema',ADMINISTRADOR:'MACROXEL Administrador',MACROXEL_QUIROFANO_STOCK:'MACROXEL Servicio Quirófano'}[c]||txt(v)||'MACROXEL Visor'}
 function baseState(r){if(!r)return'missing';const s=norm(r.status||r.estado);if(r?.maintenanceMode===true||/MAINTENANCE|MANTENIMIENTO|SERVICE_PAUSE/.test(s))return'maintenance';if(/PEND|ESPERA|WAIT/.test(s))return'pending';if(r.active===false||/SUSPEND|REVOK|CANCEL|INACTIV|DESACTIV|DELET|ELIMIN/.test(s))return'suspended';const exp=Date.parse(r.expiresAt||r.vence||r.expiry||'');if(r.active===true||/ACTIVE|ACTIVA|ACTIVO|VIGENTE|ENABLED/.test(s))return Number.isFinite(exp)&&Date.now()<=exp?'active':'expired';if(/VENC|EXPIR|CADUC/.test(s))return'expired';return'pending'}
 function applications(r){const out={};if(r?.applications&&typeof r.applications==='object')for(const [k,v] of Object.entries(r.applications)){if(v)out[code(k)]={...v,appCode:code(v.appCode||k),appName:label(v.appName||v.appCode||k)}}const rawCode=code(r?.appCode||''),legacy=(rawCode&&rawCode!=='VISOR'&&!rawCode.includes('MACROXEL_VISOR'))?rawCode:code(r?.appName||r?.app||r?.application||r?.moduleName||r?.appCode||'');if(legacy&&legacy!=='VISOR'&&!out[legacy])out[legacy]={appCode:legacy,appName:label(r?.appName||r?.app||legacy),status:r?.status,active:r?.active,requestedAt:r?.requestedAt,lastRequestAt:r?.lastRequestAt,lastSeenAt:r?.lastSeenAt,version:r?.version,approvedBy:r?.approvedBy,approvedAt:r?.activatedAt||r?.approvedAt};return out}
 function maintenanceApp(a){if(!a||typeof a!=='object')return false;const s=norm(a.status||a.estado);return a.maintenanceMode===true||/MAINTENANCE|MANTENIMIENTO|SERVICE_PAUSE/.test(s)}
@@ -2897,7 +2912,7 @@ window.mxControlLookup=async function(base,section,key,timeout=6500){
    No usa latest, no recorre sistemas, no importa Firebase de otros visores y no invalida la licencia por un cambio de URL del mismo sistema.
 */
 if(window.__mxFixedPrincipalBindingV5)return;window.__mxFixedPrincipalBindingV5=true;
-const CONTROL_DB='https://ecosistema-macroxel-default-rtdb.firebaseio.com',APP='TRANSFERENCIAS',KEY='mx_principal_binding_v5_transferencias',ONLINE_MS=60000,CONNECTION_GRACE_MS=45000;
+const CONTROL_DB=(window.mxBoundOperationalDb?.()||''),APP='TRANSFERENCIAS',KEY='mx_principal_binding_v5_transferencias',ONLINE_MS=60000,CONNECTION_GRACE_MS=45000;
 const txt=v=>String(v==null?'':v).trim(),cleanDb=v=>txt(v).replace(/\.json\/?$/i,'').replace(/\/+$/,''),cleanId=v=>txt(v).toUpperCase().replace(/[.#$\[\]\/]/g,'_');
 const validId=v=>{const id=cleanId(v);return /^MACROXEL-[A-Z0-9_-]{4,}$/.test(id)?id:''};
 function rest(db,path){const b=cleanDb(db);if(!b)return'';const p=String(path||'').startsWith('/')?String(path):'/'+String(path||'');return b+p+(p.endsWith('.json')?'':'.json')}
@@ -2998,7 +3013,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 (function(){
 'use strict';
 if(window.__mxEcosystemPerformanceSyncV100)return;window.__mxEcosystemPerformanceSyncV100=true;
-const CONTROL_HOST='ecosistema-macroxel-default-rtdb.firebaseio.com',LICENSE_HOST='licenciasmacroxel-default-rtdb.firebaseio.com';
+const CONTROL_HOST=(()=>{try{return new URL(window.mxBoundOperationalDb?.()||'').hostname.toLowerCase()}catch(_e){return''}})(),LICENSE_HOST='licenciasmacroxel-default-rtdb.firebaseio.com';
 const originalFetch=window.fetch.bind(window),inflight=new Map(),recent=new Map();
 const STARTED_AT=Date.now(),RECENT_MS=850;
 let lastRecentPruneAt=0;
@@ -3829,7 +3844,7 @@ setTimeout(()=>sync('startup',true),700);
 (function(){
 'use strict';
 if(window.__mxConnectivityMasterV101)return;window.__mxConnectivityMasterV101=true;
-const CONTROL_DB='https://ecosistema-macroxel-default-rtdb.firebaseio.com';
+const CONTROL_DB=(window.mxBoundOperationalDb?.()||'');
 const ONLINE_MS=60000,CHECK_MS=15000,MIN_CHECK_MS=4500,READY_FALLBACK_MS=2600,CONFIRM_FAIL_MS=1200;
 let pill=null,checked=false,firebase=false,principal=false,paused=false,sessionReady=false;
 let lastCheckAt=0,busy=false,level='orange',detail='Verificando conexión',firebaseFails=0,principalFails=0,readyTimer=0,bindingSig='';
@@ -4201,7 +4216,7 @@ $('scn_actSubmit').onclick=()=>submitActivation().catch(e=>$('scn_actMsg').textC
 window.__mxInitNativeRecipes=function(){if(window.__mxInitNativeRecipesDone)return true;window.__mxInitNativeRecipesDone=true;try{
 (function(){'use strict';
 const VERSION='1.0.1',APP_CODE='TRANSFERENCIAS',APP_NAME='MACROXEL Control Central Farmacia';
-const CONTROL_DB='https://ecosistema-macroxel-default-rtdb.firebaseio.com';
+const CONTROL_DB=(window.mxBoundOperationalDb?.()||'');
 const BIND_KEY='mx_principal_binding_v5_recetas',CFG_KEY='mx_viewer_recetas_cfg_v1',PROFILE_KEY='mx_transferencias__macroxel_activation_profile_v1__v139';
 const DRAFT_KEY=window.mxLocalScopeV139('mx_recetas_draft_v2'),OUTBOX_KEY=window.mxLocalScopeV139('mx_recetas_outbox_v2'),CACHE_DB=window.mxLocalScopeV139('mx_recetas_cache_v2'),CACHE_STORE='kv',SERVED_BY_PREFIX=window.mxLocalScopeV139('mx_recetas_usuario_fijo_v1');
 const FULL_REFRESH_MS=15*60*1000,VISIBLE_SYNC_MS=15000,HIDDEN_SYNC_MS=45000;
