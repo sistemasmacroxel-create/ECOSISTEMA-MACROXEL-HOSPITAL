@@ -2,6 +2,21 @@
 
 <html lang="es">
 <head>
+<script id="mx-operational-route-bootstrap-v1212">
+(function(){'use strict';
+  if(window.mxBoundOperationalDb)return;
+  const LICENSE_HOST='licenciasmacroxel-default-rtdb.firebaseio.com';
+  const routeKey='mx_route_operational_db_v1212::'+location.origin+location.pathname.replace(/\/index\.html?$/i,'/');
+  const clean=v=>String(v||'').trim().replace(/\.json\/?$/i,'').replace(/\/+$/,'');
+  const valid=v=>{try{const u=new URL(clean(v)),h=u.hostname.toLowerCase();return u.protocol==='https:'&&/(?:firebaseio\.com|firebasedatabase\.app)$/i.test(h)&&h!==LICENSE_HOST?clean(v):''}catch(_e){return''}};
+  let q='';try{const p=new URLSearchParams(location.search);q=valid(p.get('mxDb')||p.get('firebase')||p.get('db')||'')}catch(_e){}
+  if(q){try{localStorage.setItem(routeKey,q)}catch(_e){}}
+  let saved='';try{saved=valid(localStorage.getItem(routeKey)||'')}catch(_e){}
+  window.mxBoundOperationalDb=()=>q||saved;
+  window.mxRouteIsolationKey=routeKey;
+})();
+</script>
+
 <meta name="mx-storage-isolation" content="v1.0.139:farmacia_ajusco">
 
 
@@ -366,8 +381,8 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 /* ===== MACROXEL CANONICAL SOURCE: mx-maintenance-guard-v123 ===== */
 (function(){'use strict';
 if(window.__mxMaintenanceGuardV123)return;window.__mxMaintenanceGuardV123=true;
-const CONTROL_DB='https://ecosistema-macroxel-default-rtdb.firebaseio.com';
-const CONTROL_HOST='ecosistema-macroxel-default-rtdb.firebaseio.com';
+const CONTROL_DB=(window.mxBoundOperationalDb?.()||'');
+const CONTROL_HOST=(()=>{try{return new URL(window.mxBoundOperationalDb?.()||'').hostname.toLowerCase()}catch(_e){return''}})();
 const LICENSE_HOST='licenciasmacroxel-default-rtdb.firebaseio.com';
 const APP_CODE='MACROXEL_FARMACIA_AJUSCO_MEDIO';
 const STATE_KEY='mx_maintenance_state_v123';
@@ -560,7 +575,7 @@ function boot(){if(window.MX_LOGO_FALLBACK){$('mxLogo').src=window.MX_LOGO_FALLB
    No usa latest, no recorre sistemas, no importa Firebase de otros visores y no invalida la licencia por un cambio de URL del mismo sistema.
 */
 if(window.__mxFixedPrincipalBindingV5)return;window.__mxFixedPrincipalBindingV5=true;
-const CONTROL_DB='https://ecosistema-macroxel-default-rtdb.firebaseio.com',APP='FARMACIA_AJUSCO_MEDIO',KEY='mx_principal_binding_v5_farmacia_ajusco_medio',ONLINE_MS=60000,CONNECTION_GRACE_MS=45000;
+const CONTROL_DB=(window.mxBoundOperationalDb?.()||''),APP='FARMACIA_AJUSCO_MEDIO',KEY='mx_principal_binding_v5_farmacia_ajusco_medio',ONLINE_MS=60000,CONNECTION_GRACE_MS=45000;
 const txt=v=>String(v==null?'':v).trim(),cleanDb=v=>txt(v).replace(/\.json\/?$/i,'').replace(/\/+$/,''),cleanId=v=>txt(v).toUpperCase().replace(/[.#$\[\]\/]/g,'_');
 const validId=v=>{const id=cleanId(v);return /^MACROXEL-[A-Z0-9_-]{4,}$/.test(id)?id:''};
 function rest(db,path){const b=cleanDb(db);if(!b)return'';const p=String(path||'').startsWith('/')?String(path):'/'+String(path||'');return b+p+(p.endsWith('.json')?'':'.json')}
@@ -661,7 +676,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 (function(){
 'use strict';
 if(window.__mxEcosystemPerformanceSyncV100)return;window.__mxEcosystemPerformanceSyncV100=true;
-const CONTROL_HOST='ecosistema-macroxel-default-rtdb.firebaseio.com',LICENSE_HOST='licenciasmacroxel-default-rtdb.firebaseio.com';
+const CONTROL_HOST=(()=>{try{return new URL(window.mxBoundOperationalDb?.()||'').hostname.toLowerCase()}catch(_e){return''}})(),LICENSE_HOST='licenciasmacroxel-default-rtdb.firebaseio.com';
 const originalFetch=window.fetch.bind(window),inflight=new Map(),recent=new Map();
 const STARTED_AT=Date.now(),RECENT_MS=850;
 let lastRecentPruneAt=0;
@@ -1280,7 +1295,7 @@ setTimeout(()=>sync('startup',true),700);
 (function(){
 'use strict';
 if(window.__mxConnectivityMasterV101)return;window.__mxConnectivityMasterV101=true;
-const CONTROL_DB='https://ecosistema-macroxel-default-rtdb.firebaseio.com';
+const CONTROL_DB=(window.mxBoundOperationalDb?.()||'');
 const ONLINE_MS=60000,CHECK_MS=15000,MIN_CHECK_MS=4500,READY_FALLBACK_MS=2600,CONFIRM_FAIL_MS=1200;
 let pill=null,checked=false,firebase=false,principal=false,paused=false,sessionReady=false;
 let lastCheckAt=0,busy=false,level='orange',detail='Verificando conexión',firebaseFails=0,principalFails=0,readyTimer=0,bindingSig='';
