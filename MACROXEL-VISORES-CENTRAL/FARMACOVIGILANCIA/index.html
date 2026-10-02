@@ -2130,17 +2130,30 @@ async function clearUntrustedBinding(source='RUTA_NO_ASOCIADA'){
   return{schemaVersion:6,mode:'STRICT_LIVE_ROUTE_SYSTEM_ID',appCode:APP,systemId:'',branch:'',db:'',firebaseUrl:'',source,updatedAt:new Date().toISOString()};
 }
 async function ensureSystemId(){
- const previousSystemId=systemId;
- const q=queryId();
- const exact=await routeAssociation().catch(()=>null),base=await baseAssociation().catch(()=>null);
- if(exact?.systemId&&base?.systemId&&exact.systemId!==base.systemId){await clearUntrustedBinding('CONFLICTO_RUTA_BASE');return''}
- const assoc=exact||base;
- if(!assoc?.systemId){await clearUntrustedBinding('RUTA_GITHUB_NO_ASOCIADA');return''}
+ const previousSystemId=systemId,q=queryId(),boundDb=cleanDb(CONTROL_DB);let assoc=null;
+ if(q&&boundDb){
+   const raw=await get(CONTROL_DB,'/ecosystem_connection/'+encodeURIComponent(q),6500).catch(()=>null),rec=exactRecord(raw,q);
+   if(rec&&cleanDb(rec.db)===boundDb)assoc={systemId:q,source:'SISTEMA_PRINCIPAL_URL'};
+   else{
+     const pres=await get(CONTROL_DB,'/inventory_heartbeat/principal_status/'+encodeURIComponent(q),3500).catch(()=>null),pdb=cleanDb(pres?.firebaseUrl||pres?.db||pres?.currentUrl||pres?.url),pid=validId(pres?.branch||pres?.unitId||pres?.systemId||q);
+     if(pid===q&&pdb===boundDb)assoc={systemId:q,source:'SISTEMA_PRINCIPAL_URL_PRESENCIA'};
+   }
+   if(!assoc){await clearUntrustedBinding('ID_URL_NO_PUBLICADO_EN_FIREBASE_RECIBIDA');return''}
+ }else if(boundDb){
+   const prev=readBinding(),pid=validId(prev?.systemId||prev?.branch),pdb=cleanDb(prev?.db||prev?.firebaseUrl);
+   if(pid&&pdb===boundDb)assoc={systemId:pid,source:'ASOCIACION_LOCAL_DE_ESTA_RUTA'};
+ }
+ if(!assoc){
+   const exact=await routeAssociation().catch(()=>null),base=await baseAssociation().catch(()=>null);
+   if(exact?.systemId&&base?.systemId&&exact.systemId!==base.systemId){await clearUntrustedBinding('CONFLICTO_RUTA_BASE');return''}
+   assoc=exact||base;
+ }
+ if(!assoc?.systemId){await clearUntrustedBinding(boundDb?'RUTA_GITHUB_NO_ASOCIADA':'ABRIR_DESDE_SISTEMA_PRINCIPAL');return''}
  if(q&&q!==assoc.systemId){await clearUntrustedBinding('ID_URL_NO_COINCIDE_CON_RUTA');return''}
  if(previousSystemId&&previousSystemId!==assoc.systemId){try{window.mxClearOperationalDbApproval?.()}catch(_e){}}
  systemId=assoc.systemId;
  const prev=readBinding();
- saveBinding({...(prev||{}),schemaVersion:6,mode:'STRICT_LIVE_ROUTE_SYSTEM_ID',appCode:APP,systemId,branch:systemId,githubBase:githubBaseSignature(),routeSignature:routeSignature(),routeHash,baseHash,boundAt:prev?.boundAt||new Date().toISOString(),updatedAt:new Date().toISOString(),source:assoc.source});
+ saveBinding({...(prev||{}),schemaVersion:7,mode:'DYNAMIC_PRINCIPAL_HANDOFF',appCode:APP,systemId,branch:systemId,db:boundDb||cleanDb(prev?.db||prev?.firebaseUrl),firebaseUrl:boundDb||cleanDb(prev?.db||prev?.firebaseUrl),githubBase:githubBaseSignature(),routeSignature:routeSignature(),routeHash,baseHash,boundAt:prev?.boundAt||new Date().toISOString(),updatedAt:new Date().toISOString(),source:assoc.source});
  return systemId;
 }
 async function resolve(force=false){
