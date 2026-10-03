@@ -20,3 +20,10 @@ El espejo acepta solamente Firebase operativa; la URL de licencias permanece sep
 
 Esta carpeta central servirá como fuente para los repositorios espejo que se creen
 después en las distintas cuentas GitHub.
+
+Activación por dispositivo:
+- Solicita Nombre completo, Número de teléfono y Correo electrónico.
+- Registra la solicitud en /viewer_licenses/{ID_SISTEMA}/{DISPOSITIVO}.
+- Aplicación: HOSPITAL_MIRROR / Espejo hospitalario.
+- La autorización se realiza desde Control Central, igual que los demás visores.
+- Mientras no esté autorizado, el espejo permanece bloqueado y no carga los registros.
