@@ -955,7 +955,7 @@ body.mx-auth-blue-flash-v167::after{content:"";position:fixed;inset:0;z-index:21
 <section class="mx-hidden" id="patientsView">
 <div class="card">
 <div class="mx-patient-consult-head">
-<div><h3>👤 Pacientes</h3><p>Muestra pacientes con movimiento de hoy y de ayer cuando aún no tienen registro hoy. El buscador consulta también fechas anteriores.</p></div>
+<div><h3>👤 Pacientes</h3><p>Muestra pacientes con movimiento de hoy y de ayer. Si no hay registros recientes de esos dos días, muestra los de antier como respaldo. El buscador consulta también fechas anteriores.</p></div>
 <span class="mx-patient-readonly">🔒 SOLO CONSULTA</span>
 </div>
 <div class="mx-patient-toolbar">
@@ -1771,7 +1771,7 @@ async function mxTrBumpVersion(path){const p=String(path||'');const key=p.includ
     patientLoadedAt=Date.now();
     if(selectedKey&&!patientCatalog.some(p=>p.key===selectedKey)){selectedKey='';selectedName='';selectedExp='';raw=[];filtered=[]}
     if(selectedKey){const current=patientCatalog.find(p=>p.key===selectedKey);if(current){selectedName=current.nombre;selectedExp=current.expediente;raw=patientHistoryItemsFor(current)}}
-    renderPatients();applyFilters();const active=patientCatalog.filter(p=>p.enCenso).length,summary=mxPatientDailySummary();setPatientStatus(`${summary.today} de hoy + ${summary.yesterday} de ayer sin registro hoy · ${active} en censo · búsqueda histórica disponible`);return patientCatalog;
+    renderPatients();applyFilters();const active=patientCatalog.filter(p=>p.enCenso).length,summary=mxPatientDailySummary();setPatientStatus(summary.visibleFallback>0?`${summary.visibleFallback} de ANTIER · respaldo porque no hay registros de hoy ni ayer · ${active} en censo · búsqueda histórica disponible`:`${summary.today} de hoy + ${summary.yesterday} de ayer sin registro hoy · ${active} en censo · búsqueda histórica disponible`);return patientCatalog;
   }
   async function loadPatientList(){return fetchData(true)}
   async function sendPatientQuery(){
@@ -1811,16 +1811,18 @@ async function mxTrBumpVersion(path){const p=String(path||'');const key=p.includ
   }
   function mxPatientDayInfo(p={}){
     const d=mxPatientActivityDate(p);if(!d)return{day:'older',dateKey:'',time:0};
-    const today=new Date();today.setHours(0,0,0,0);const yesterday=new Date(today);yesterday.setDate(yesterday.getDate()-1);
-    const key=ymd(d),todayKey=ymd(today),yesterdayKey=ymd(yesterday);
-    return{day:key===todayKey?'today':(key===yesterdayKey?'yesterday':'older'),dateKey:key,time:d.getTime()};
+    const today=new Date();today.setHours(0,0,0,0);const yesterday=new Date(today);yesterday.setDate(yesterday.getDate()-1);const anteayer=new Date(today);anteayer.setDate(anteayer.getDate()-2);
+    const key=ymd(d),todayKey=ymd(today),yesterdayKey=ymd(yesterday),anteayerKey=ymd(anteayer);
+    return{day:key===todayKey?'today':(key===yesterdayKey?'yesterday':(key===anteayerKey?'anteayer':'older')),dateKey:key,time:d.getTime()};
   }
   function mxPatientVisibleList(q=''){
     const query=norm(q),rows=patientCatalog.map(p=>({p,info:mxPatientDayInfo(p)}));
     if(query)return rows.filter(({p})=>[p.nombre,p.expediente,p.ultimoServicio,p.servicioOrigen,p.diagnostico,p.numeroCama,p.medico,p.cedula].some(v=>norm(v).includes(query))).sort((a,b)=>b.info.time-a.info.time||a.p.nombre.localeCompare(b.p.nombre,'es')).map(x=>x.p);
-    return rows.filter(x=>x.info.day==='today'||x.info.day==='yesterday').sort((a,b)=>{const ad=a.info.day==='today'?0:1,bd=b.info.day==='today'?0:1;return ad-bd||b.info.time-a.info.time||a.p.nombre.localeCompare(b.p.nombre,'es')}).map(x=>x.p);
+    const recent=rows.filter(x=>x.info.day==='today'||x.info.day==='yesterday');
+    if(recent.length)return recent.sort((a,b)=>{const ad=a.info.day==='today'?0:1,bd=b.info.day==='today'?0:1;return ad-bd||b.info.time-a.info.time||a.p.nombre.localeCompare(b.p.nombre,'es')}).map(x=>x.p);
+    return rows.filter(x=>x.info.day==='anteayer').sort((a,b)=>b.info.time-a.info.time||a.p.nombre.localeCompare(b.p.nombre,'es')).map(x=>x.p);
   }
-  function mxPatientDailySummary(){let today=0,yesterday=0;for(const p of patientCatalog){const d=mxPatientDayInfo(p).day;if(d==='today')today++;else if(d==='yesterday')yesterday++}return{today,yesterday,total:today+yesterday}}
+  function mxPatientDailySummary(){let today=0,yesterday=0,anteayer=0;for(const p of patientCatalog){const d=mxPatientDayInfo(p).day;if(d==='today')today++;else if(d==='yesterday')yesterday++;else if(d==='anteayer')anteayer++}return{today,yesterday,anteayer,total:today+yesterday,visibleFallback:today+yesterday===0?anteayer:0}}
   function renderPatients(force=false){
     const q=norm($('q')?.value||''),list=mxPatientVisibleList(q),summary=mxPatientDailySummary(),host=$('patientList');
     const sig=q+'||'+list.map(p=>[p.key,p.nombre,p.expediente,p.ultimoServicio,p.folioAsignado,p.ultimaFecha,p.enCenso?'1':'0',mxPatientDayInfo(p).day].join('~')).join('||');
@@ -1831,8 +1833,8 @@ async function mxTrBumpVersion(path){const p=String(path||'');const key=p.includ
     const viewport=patientLocalScrollState(),focused=document.activeElement;
     if(focused&&host?.contains(focused)){try{focused.blur()}catch(_e){}}
     patientListRenderSig=sig;
-    host.innerHTML=list.length?list.map(p=>{const info=mxPatientDayInfo(p),badge=!q&&info.day!=='older'?`<span class="mx-patient-census" style="margin-left:5px;background:${info.day==='today'?'#dcfce7':'#fef3c7'};color:${info.day==='today'?'#166534':'#92400e'}">${info.day==='today'?'HOY':'AYER'}</span>`:'';return`<button type="button" class="patient ${selectedKey===p.key?'active':''}" data-key="${esc(p.key)}"><div class="name">${esc(p.nombre)}${badge}${p.enCenso?'<span class="mx-patient-census">CENSO</span>':''}</div><div class="meta">${p.expediente?'Exp. '+esc(p.expediente)+' · ':''}${p.ultimoServicio?'Servicio: '+esc(p.ultimoServicio)+' · ':''}${p.folioAsignado?'Folio: '+esc(p.folioAsignado)+' · ':''}${p.ultimaFecha?'Último: '+esc(p.ultimaFecha):'Sin fecha publicada'}</div></button>`}).join(''):`<div class="empty">${q?'No se encontraron pacientes en el historial disponible.':'No hay pacientes con movimiento de hoy ni de ayer. Usa el buscador para consultar fechas anteriores.'}</div>`;
-    if(!q&&!selectedKey)setPatientStatus(`${summary.today} paciente${summary.today===1?'':'s'} de hoy + ${summary.yesterday} de ayer sin registro hoy · la búsqueda consulta fechas anteriores`);
+    host.innerHTML=list.length?list.map(p=>{const info=mxPatientDayInfo(p),isToday=info.day==='today',isYesterday=info.day==='yesterday',isAnteayer=info.day==='anteayer',badge=!q&&(isToday||isYesterday||isAnteayer)?`<span class="mx-patient-census" style="margin-left:5px;background:${isToday?'#dcfce7':(isYesterday?'#fef3c7':'#eef2ff')};color:${isToday?'#166534':(isYesterday?'#92400e':'#3730a3')}">${isToday?'HOY':(isYesterday?'AYER':'ANTIER')}</span>`:'';return`<button type="button" class="patient ${selectedKey===p.key?'active':''}" data-key="${esc(p.key)}"><div class="name">${esc(p.nombre)}${badge}${p.enCenso?'<span class="mx-patient-census">CENSO</span>':''}</div><div class="meta">${p.expediente?'Exp. '+esc(p.expediente)+' · ':''}${p.ultimoServicio?'Servicio: '+esc(p.ultimoServicio)+' · ':''}${p.folioAsignado?'Folio: '+esc(p.folioAsignado)+' · ':''}${p.ultimaFecha?'Último: '+esc(p.ultimaFecha):'Sin fecha publicada'}</div></button>`}).join(''):`<div class="empty">${q?'No se encontraron pacientes en el historial disponible.':'No hay pacientes con movimiento de hoy, ayer ni antier. Usa el buscador para consultar fechas anteriores.'}</div>`;
+    if(!q&&!selectedKey)setPatientStatus(summary.visibleFallback>0?`${summary.visibleFallback} paciente${summary.visibleFallback===1?'':'s'} de ANTIER · respaldo porque no hay registros de hoy ni ayer · búsqueda histórica disponible`:`${summary.today} paciente${summary.today===1?'':'s'} de hoy + ${summary.yesterday} de ayer sin registro hoy · búsqueda histórica disponible`);
     document.querySelectorAll('#patientList .patient').forEach(b=>{b.addEventListener('mousedown',e=>e.preventDefault());b.onclick=()=>{const p=patientCatalog.find(x=>x.key===b.dataset.key);if(!p)return;selectedKey=p.key;selectedName=p.nombre;selectedExp=p.expediente;const detailsPanel=$('patientDetailsPanel');if(detailsPanel)detailsPanel.open=false;updatePatientSelectionUi();sendPatientQuery().catch(e=>{setPatientStatus('No se pudo consultar: '+e.message);setFirebaseStatus(false,'Sin acceso a Firebase')})}});
     restorePatientLocalScroll(viewport);
   }
