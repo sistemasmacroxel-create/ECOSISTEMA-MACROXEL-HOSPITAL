@@ -14,6 +14,28 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Reparar bloqueo de JavaScript previo a la conexion
+        shell: bash
+        run: |
+          python - <<'PYREPAIR'
+          from pathlib import Path
+          p=Path('MACROXEL-VISORES-CENTRAL/QUIROFANO-STOCK-ANTIBIOTICOS/index.html')
+          s=p.read_text()
+          marker='<script id="mx-app-policy-guard-v246-quirofano_stock">'
+          pos=s.find(marker)
+          if pos<0: raise SystemExit('No se encontró el control insertado en el script principal')
+          end=s.find('</script>',pos)
+          if end<0: raise SystemExit('El control de mantenimiento está incompleto')
+          policy=s[pos:end+9]
+          policy=policy.replace("b.textContent=reason||'Visor apagado desde Administrador'", "b.textContent='El sistema se encuentra en mantenimiento.'")
+          policy=policy.replace("message:reason||'Visor apagado desde Administrador'", "message:'El sistema se encuentra en mantenimiento.'")
+          s=s[:pos]+s[end+9:]
+          footer=s.rfind('</body>')
+          if footer<0: raise SystemExit('No se encontró cierre HTML')
+          s=s[:footer]+policy+'\n'+s[footer:]
+          p.write_text(s)
+          print('Control de mantenimiento extraído del JavaScript principal; visor recuperado')
+          PYREPAIR
       - name: Aplicar nueva integración v258
         shell: bash
         run: |
