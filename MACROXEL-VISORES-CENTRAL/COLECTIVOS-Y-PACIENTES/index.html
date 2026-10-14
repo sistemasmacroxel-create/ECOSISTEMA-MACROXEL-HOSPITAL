@@ -4607,5 +4607,20 @@ setInterval(applyAll,1200);setTimeout(applyAll,0);
 
 
 
+
+<script id="mx-app-policy-guard-v246-colectivos">
+(()=>{'use strict';if(window.__mxAppPolicyGuardV246_COLECTIVOS)return;window.__mxAppPolicyGuardV246_COLECTIVOS=true;
+const APP='COLECTIVOS',CONTROL='https://ecosistema-macroxel-default-rtdb.firebaseio.com',LICENSE='licenciasmacroxel-default-rtdb.firebaseio.com',CONTROL_HOST='ecosistema-macroxel-default-rtdb.firebaseio.com';
+const rawFetch=window.fetch.bind(window);let off=false,reason='',last='';
+const txt=v=>String(v==null?'':v).trim(),clean=v=>txt(v).replace(/\.json\/?$/i,'').replace(/\/+$/,'');
+function branch(){try{const v=txt(window.mxFixedPrincipalBinding?.systemId||window.mxViewerGetCfg?.()?.branch||window.mxViewerGetCfg?.()?.systemId);if(v)return v.toUpperCase()}catch(_e){}try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i)||'';if(!/(viewer|cfg|config|antibiotic|qx)/i.test(k))continue;let o=null;try{o=JSON.parse(localStorage.getItem(k)||'null')}catch(_e){}const v=txt(o?.systemId||o?.branch||o?.activationId);if(v)return v.toUpperCase()}}catch(_e){}return''}
+function banner(){let b=document.getElementById('mxAppPolicyBannerV246');if(!b){b=document.createElement('div');b.id='mxAppPolicyBannerV246';b.style.cssText='position:fixed;left:50%;top:7px;transform:translateX(-50%);z-index:2147483640;padding:8px 14px;border-radius:999px;background:#991b1b;color:#fff;font:900 11px/1.2 system-ui;box-shadow:0 8px 24px rgba(0,0,0,.25);display:none;text-align:center;max-width:92vw';document.body.appendChild(b)}b.textContent=reason||'Visor apagado desde Administrador';b.style.display=off?'block':'none';document.documentElement.dataset.mxAdminViewerOff=off?'1':'0'}
+async function tick(){const br=branch();if(!br)return;try{const r=await rawFetch(CONTROL+'/ecosystem_connection/app_control/'+encodeURIComponent(br)+'/'+encodeURIComponent(APP)+'.json?ts='+Date.now(),{cache:'no-store'});const p=r.ok?await r.json().catch(()=>null):null;const next=p?.paused===true,why=txt(p?.reason);if(next!==off||why!==reason){off=next;reason=why;banner();try{window.dispatchEvent(new CustomEvent('mx-app-policy-change',{detail:{appCode:APP,branch:br,paused:off,reason}}))}catch(_e){}}last=txt(p?.updatedAt)}catch(_e){}}
+function operational(input){try{const u=new URL(typeof input==='string'?input:input?.url,location.href),h=u.hostname.toLowerCase();return /(?:firebaseio\.com|firebasedatabase\.app)$/i.test(h)&&h!==CONTROL_HOST&&h!==LICENSE}catch(_e){return false}}
+window.fetch=function(input,init){if(off&&operational(input))return Promise.resolve(new Response(JSON.stringify({error:'viewer_disabled',message:reason||'Visor apagado desde Administrador'}),{status:503,statusText:'Viewer Disabled',headers:{'Content-Type':'application/json'}}));return rawFetch(input,init)};
+function boot(){banner();tick();setInterval(tick,8000);window.addEventListener('online',tick);window.addEventListener('focus',tick);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')tick()})}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
+})();
+</script>
 </body>
 </html>
