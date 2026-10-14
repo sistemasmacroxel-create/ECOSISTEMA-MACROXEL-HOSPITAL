@@ -1,0 +1,47 @@
+name: Macroxel Quirófano - conexión v258
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/qx-v258-connection.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  update-viewer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Aplicar nueva integración v258
+        shell: bash
+        run: |
+          base64 -d tools/qx_v258_payload.txt | gzip -d > /tmp/qx_v258_patch.py
+          python /tmp/qx_v258_patch.py
+      - name: Verificar funciones y sintaxis
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re,subprocess
+          text=Path('MACROXEL-VISORES-CENTRAL/QUIROFANO-STOCK-ANTIBIOTICOS/index.html').read_text()
+          assert 'MACROXEL V258 · NUEVA CONEXIÓN DEL VISOR' in text
+          assert 'mx_qx_link_v258::' in text
+          assert 'jget(c.dbUrl,path(c.systemId)).catch(()=>null)' not in text
+          for i,block in enumerate(re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',text,re.S|re.I)):
+              result=subprocess.run(['node','--check'],input=block,text=True,capture_output=True)
+              assert result.returncode==0,(i,result.stderr)
+          print('Verificación v258 correcta')
+          PY
+      - name: Publicar la integración de Quirófano
+        shell: bash
+        run: |
+          if git diff --quiet -- MACROXEL-VISORES-CENTRAL/QUIROFANO-STOCK-ANTIBIOTICOS/index.html; then
+            echo 'El visor ya usa v258.'
+            exit 0
+          fi
+          git config user.name 'Macroxel Web Sync'
+          git config user.email 'sistemasmacroxel@gmail.com'
+          git add MACROXEL-VISORES-CENTRAL/QUIROFANO-STOCK-ANTIBIOTICOS/index.html
+          git commit -m 'Reemplaza conexión/login quirófano v258 sin pruebas en rutas protegidas'
+          git push origin HEAD:main
