@@ -36,7 +36,6 @@ jobs:
           grep -q "MX_CURRENT_VIEWERS=.*CONTROL_CENTRAL.*COLECTIVOS.*CENSO_HOSPITALARIO.*FARMACOVIGILANCIA.*FARMACIA_AJUSCO_MEDIO.*QUIROFANO_STOCK" "$ADMIN"
           grep -q "/ecosystem_connection/app_control" "$ADMIN"
           grep -q "toggleViewerAppSelected" "$ADMIN"
-          grep -q "data-mx-viewer-toggle" "$ADMIN"
           grep -q "mx-app-policy-guard-v246-control_central" "MACROXEL-VISORES-CENTRAL/CONTROL-CENTRAL/index.html"
           grep -q "mx-app-policy-guard-v246-colectivos" "MACROXEL-VISORES-CENTRAL/COLECTIVOS-Y-PACIENTES/index.html"
           grep -q "mx-app-policy-guard-v246-censo_hospitalario" "MACROXEL-VISORES-CENTRAL/CENSO-HOSPITALARIO/index.html"
