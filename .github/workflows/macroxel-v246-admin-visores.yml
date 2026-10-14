@@ -1,0 +1,58 @@
+name: Macroxel Admin Visores v246
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - ".github/workflows/macroxel-v246-admin-visores.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-admin-visores:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Decode v246 patch
+        shell: bash
+        run: |
+          cat tools/v246_payload_00.txt | base64 -d | gzip -d > /tmp/macroxel_patch_v246_admin.py
+          python -m py_compile /tmp/macroxel_patch_v246_admin.py
+
+      - name: Apply persistent visor controls
+        run: python /tmp/macroxel_patch_v246_admin.py .
+
+      - name: Verify v246
+        shell: bash
+        run: |
+          ADMIN="MACROXEL-VISORES-CENTRAL/ADMINISTRADOR/index.html"
+          grep -q "MACROXEL V246 · CONTROL PERSISTENTE DE VISORES" "$ADMIN"
+          grep -q "MX_CURRENT_VIEWERS=.*CONTROL_CENTRAL.*COLECTIVOS.*CENSO_HOSPITALARIO.*FARMACOVIGILANCIA.*FARMACIA_AJUSCO_MEDIO.*QUIROFANO_STOCK" "$ADMIN"
+          grep -q "/ecosystem_connection/app_control" "$ADMIN"
+          grep -q "toggleViewerAppSelected" "$ADMIN"
+          grep -q "data-mx-viewer-toggle" "$ADMIN"
+          grep -q "mx-app-policy-guard-v246-control_central" "MACROXEL-VISORES-CENTRAL/CONTROL-CENTRAL/index.html"
+          grep -q "mx-app-policy-guard-v246-colectivos" "MACROXEL-VISORES-CENTRAL/COLECTIVOS-Y-PACIENTES/index.html"
+          grep -q "mx-app-policy-guard-v246-censo_hospitalario" "MACROXEL-VISORES-CENTRAL/CENSO-HOSPITALARIO/index.html"
+          grep -q "mx-app-policy-guard-v246-farmacovigilancia" "MACROXEL-VISORES-CENTRAL/FARMACOVIGILANCIA/index.html"
+          grep -q "mx-app-policy-guard-v246-farmacia_ajusco_medio" "MACROXEL-VISORES-CENTRAL/FARMACIA-AJUSCO-M/index.html"
+          grep -q "mx-app-policy-guard-v246-quirofano_stock" "MACROXEL-VISORES-CENTRAL/QUIROFANO-STOCK-ANTIBIOTICOS/index.html"
+
+      - name: Commit v246
+        shell: bash
+        run: |
+          if git diff --quiet --             MACROXEL-VISORES-CENTRAL/ADMINISTRADOR/index.html             MACROXEL-VISORES-CENTRAL/CONTROL-CENTRAL/index.html             MACROXEL-VISORES-CENTRAL/COLECTIVOS-Y-PACIENTES/index.html             MACROXEL-VISORES-CENTRAL/CENSO-HOSPITALARIO/index.html             MACROXEL-VISORES-CENTRAL/FARMACOVIGILANCIA/index.html             MACROXEL-VISORES-CENTRAL/FARMACIA-AJUSCO-M/index.html             MACROXEL-VISORES-CENTRAL/QUIROFANO-STOCK-ANTIBIOTICOS/index.html; then
+            echo "v246 already applied."
+            exit 0
+          fi
+          git config user.name "Macroxel Web Sync"
+          git config user.email "sistemasmacroxel@gmail.com"
+          git add             MACROXEL-VISORES-CENTRAL/ADMINISTRADOR/index.html             MACROXEL-VISORES-CENTRAL/CONTROL-CENTRAL/index.html             MACROXEL-VISORES-CENTRAL/COLECTIVOS-Y-PACIENTES/index.html             MACROXEL-VISORES-CENTRAL/CENSO-HOSPITALARIO/index.html             MACROXEL-VISORES-CENTRAL/FARMACOVIGILANCIA/index.html             MACROXEL-VISORES-CENTRAL/FARMACIA-AJUSCO-M/index.html             MACROXEL-VISORES-CENTRAL/QUIROFANO-STOCK-ANTIBIOTICOS/index.html
+          git commit -m "Control persistente de visores actuales v246"
+          git push origin HEAD:main
