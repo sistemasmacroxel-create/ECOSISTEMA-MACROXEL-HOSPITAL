@@ -1,0 +1,48 @@
+name: Reparar carga de Antibioticos en Control Central v283
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/control-central-abx-v283.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publicar-control-central-v283:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar ecosistema
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verificar version base y aplicar correccion
+        shell: bash
+        run: |
+          set -eu
+          FILE='MACROXEL-VISORES-CENTRAL/CONTROL-CENTRAL/index.html'
+          CHECKSUM=$(sha256sum "$FILE" | awk '{print $1}')
+          if [ "$CHECKSUM" != '773ef940f9fc79b1cdaafac989a82dd6bdaf79626418483dbc81ddfbdd4bf3d1' ]; then
+            echo "::error::El Control Central ha cambiado; no sobrescribir sin revisar."
+            exit 1
+          fi
+          python3 tools/control-central-abx-hotfix-v283.py
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('MACROXEL-VISORES-CENTRAL/CONTROL-CENTRAL/index.html').read_text()
+          beg=s.index('/* ===== MACROXEL CANONICAL SOURCE: mx-transfer-antibiotic-capacity-v205 ===== */')
+          Path('/tmp/mx-control-central-abx-v283.js').write_text(s[beg:s.index('</script>',beg)])
+          assert 'mxAbxStockFallbackV283' in s
+          PY
+          node --check /tmp/mx-control-central-abx-v283.js
+          git diff --check
+      - name: Publicar codigo verificado
+        shell: bash
+        run: |
+          set -eu
+          git config user.name 'Sistemas Macroxel'
+          git config user.email 'sistemasmacroxel@gmail.com'
+          git add -- MACROXEL-VISORES-CENTRAL/CONTROL-CENTRAL/index.html
+          git commit -m 'Corrige Antibioticos Control Central v283: recuperar existencias actuales verificadas'
+          git push origin HEAD:main
