@@ -1,0 +1,42 @@
+name: Restaurar columnas Antibioticos Central v284
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/macroxel-v284-abx-columns.yml'
+      - 'tools/v284_fix_abx_columns.py'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Aplicar correccion del Control Central
+        run: python tools/v284_fix_abx_columns.py
+      - name: Verificar JavaScript y funciones
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('MACROXEL-VISORES-CENTRAL/CONTROL-CENTRAL/index.html').read_text()
+          key='/* ===== MACROXEL CANONICAL SOURCE: mx-transfer-antibiotic-capacity-v205 ===== */'
+          a=s.index(key);b=s.index('</script>',a)
+          assert 'mxAbxRebuildVerifiedLiveV284' in s[a:b]
+          Path('/tmp/mx-abx-284.js').write_text(s[a:b])
+          PY
+          node --check /tmp/mx-abx-284.js
+      - name: Publicar archivo actualizado
+        shell: bash
+        run: |
+          if git diff --quiet -- MACROXEL-VISORES-CENTRAL/CONTROL-CENTRAL/index.html; then
+            echo 'Ya estaba actualizado'; exit 0
+          fi
+          git config user.name 'Sistemas Macroxel'
+          git config user.email 'sistemasmacroxel@gmail.com'
+          git add MACROXEL-VISORES-CENTRAL/CONTROL-CENTRAL/index.html
+          git commit -m 'Restaura calculo informativo Antibioticos v284 sin utilizar cantidades antiguas'
+          git push origin HEAD:main
