@@ -1,0 +1,45 @@
+name: Corregir confirmacion Antibioticos Control Central v286
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/control-central-abx-v286.yml'
+      - 'tools/v286_control_central_confirmacion.py'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  corregir-visor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Aplicar correccion solamente al Control Central
+        run: python3 tools/v286_control_central_confirmacion.py
+      - name: Verificar sintaxis y confirmacion
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('MACROXEL-VISORES-CENTRAL/CONTROL-CENTRAL/index.html')
+          s=p.read_text(encoding='utf-8')
+          a=s.index('/* ===== MACROXEL CANONICAL SOURCE: mx-transfer-antibiotic-capacity-v205 ===== */')
+          b=s.index('</script>',a)
+          Path('/tmp/mx-central-abx.js').write_text(s[a:b],encoding='utf-8')
+          assert 'mxAbxVerifiedSequenceV286' in s
+          assert 'principalSource&&principalInventory&&(matchesRevision||matchesSeq)' in s
+          assert '🟠 ALCANZARÍA · SIN CONFIRMAR' in s
+          PY
+          node --check /tmp/mx-central-abx.js
+      - name: Publicar Control Central, sin modificar otros visores
+        shell: bash
+        run: |
+          if git diff --quiet -- MACROXEL-VISORES-CENTRAL/CONTROL-CENTRAL/index.html; then
+            echo 'Visor ya sincronizado'; exit 0
+          fi
+          git config user.name 'Sistemas Macroxel'
+          git config user.email 'sistemasmacroxel@gmail.com'
+          git add MACROXEL-VISORES-CENTRAL/CONTROL-CENTRAL/index.html
+          git commit -m 'Corrige validacion de capacidad del visor Central v286'
+          git push origin HEAD:main
