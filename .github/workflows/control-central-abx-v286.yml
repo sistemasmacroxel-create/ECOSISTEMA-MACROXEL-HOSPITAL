@@ -28,7 +28,7 @@ jobs:
           b=s.index('</script>',a)
           Path('/tmp/mx-central-abx.js').write_text(s[a:b],encoding='utf-8')
           assert 'mxAbxVerifiedSequenceV286' in s
-          assert 'principalSource&&principalInventory&&(matchesRevision||matchesSeq)' in s
+          assert 'verifiedRecentV286' in s and 'matchesRevision||matchesSeq' in s
           assert '🟠 ALCANZARÍA · SIN CONFIRMAR' in s
           PY
           node --check /tmp/mx-central-abx.js
