@@ -1,0 +1,58 @@
+name: Vinculacion segura de unidad en Antibioticos Control Central
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/control-central-abx-binding-v283.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  binding:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Corregir vinculación autorizada y comprobar JS
+        shell: bash
+        run: |
+          set -eu
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          p=Path('MACROXEL-VISORES-CENTRAL/CONTROL-CENTRAL/index.html')
+          raw=p.read_bytes()
+          actual=hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()
+          assert actual=='1f59dc2ba1c332ecd609b53ef30c1de9fccc921f', 'El visor cambió; no reemplazar'
+          s=raw.decode('utf-8')
+          marker='/* ===== MACROXEL CANONICAL SOURCE: mx-transfer-antibiotic-capacity-v205 ===== */'
+          pre,post=s.split(marker,1)
+          old='busy=(async()=>{const branch=encodeURIComponent(cfg().branch);'
+          new="""busy=(async()=>{
+            let configuration=cfg();
+            const bound=String(window.mxFixedPrincipalBinding?.systemId||'').trim().toUpperCase();
+            if(/^MACROXEL-[A-Z0-9_-]{4,}$/.test(bound)&&bound!==String(configuration.branch||'').toUpperCase()){
+              try{await window.mxFixedPrincipalBinding?.resolve?.(false)}catch(_e){}
+              configuration=cfg();
+            }
+            const branch=encodeURIComponent(String(configuration.branch||configuration.unitId||bound||'HGAM').toUpperCase());"""
+          assert post.count(old)==1
+          p.write_text(pre+marker+post.replace(old,new,1),encoding='utf-8')
+          s=p.read_text(encoding='utf-8')
+          b=s.index(marker)
+          Path('/tmp/abx-binding-check.js').write_text(s[b:s.index('</script>',b)])
+          PY
+          node --check /tmp/abx-binding-check.js
+          git diff --check
+      - name: Publicar vinculación verificada
+        shell: bash
+        run: |
+          set -eu
+          git config user.name 'Sistemas Macroxel'
+          git config user.email 'sistemasmacroxel@gmail.com'
+          git add -- MACROXEL-VISORES-CENTRAL/CONTROL-CENTRAL/index.html
+          git commit -m 'Verifica unidad vinculada antes de consultar antibioticos'
+          git push origin HEAD:main
