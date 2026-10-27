@@ -1,0 +1,14 @@
+MACROXEL HPS - VISOR QUIRÓFANO / STOCK ANTIBIÓTICOS
+
+Esta es la carpeta canónica del visor dentro del ecosistema.
+Todo el código y los recursos propios del visor permanecen aquí; no se usan archivos sueltos en MACROXEL-VISORES-CENTRAL ni el alias antiguo CONTROL-STOCK-ANTIBIOTICOS.
+
+Funciones principales:
+- Registrar consumo de antibióticos por paciente.
+- Consultar stock objetivo y disponible del servicio.
+- Solicitar faltantes a Farmacia mediante Pedidos.
+- Usar Kits del Sistema Principal como definición del stock objetivo.
+- Solicitar/validar activación por dispositivo como los demás visores.
+
+Conector GitHub opcional:
+CONECTORES_GITHUB/Quirofano-Stock-Antibioticos/
