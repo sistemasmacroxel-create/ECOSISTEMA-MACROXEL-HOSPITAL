@@ -1,0 +1,63 @@
+name: Restaurar calculos Antibiticos Control Central desde respaldo v286
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/control-central-recuperar-calculos-v287.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: central-restore-abx-v287
+  cancel-in-progress: false
+jobs:
+  recuperar-calculos:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Obtener codigo y versiones anteriores
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Recuperar solo la logica de Antibioticos desde respaldo previo a v277
+        shell: bash
+        run: |
+          git fetch origin refs/heads/respaldo-control-central-antes-restauracion-v277-20261026:refs/remotes/origin/respaldo-control-central-antes-restauracion-v277-20261026
+          python3 <<'PY'
+          from pathlib import Path
+          import subprocess
+          p=Path('MACROXEL-VISORES-CENTRAL/CONTROL-CENTRAL/index.html')
+          current=p.read_text(encoding='utf-8')
+          backup=subprocess.check_output(['git','show','e43dc475ace4d953c817976f9fb976ea3298b610:'+str(p)],text=True)
+          mark='/* ===== MACROXEL CANONICAL SOURCE: mx-transfer-antibiotic-capacity-v205 ===== */'
+          def extract(s):
+              if s.count(mark)!=1: raise RuntimeError('Marcador de antibioticos ausente o repetido')
+              a=s.index(mark)
+              b=s.index('</script>',a)
+              return a,b,s[a:b]
+          a,b,old=extract(current)
+          _,_,new=extract(backup)
+          for key in ['mxAbxRebuildVerifiedLiveV284','mxAbxStockFallbackV283','mxAbxVerifiedSequenceV286','function renderAntibiotics','function commitment(']:
+              if key not in new:raise RuntimeError('Respaldo incompleto: '+key)
+          if len(new)<len(old)-10000 or len(new)>len(old)+20000:
+              raise RuntimeError('Cambio anormal de tamano de bloque')
+          patched=current[:a]+new+current[b:]
+          assert patched.count(mark)==1
+          assert patched[:a]==current[:a] and patched[a+len(new):]==current[b:]
+          p.write_text(patched,encoding='utf-8')
+          Path('/tmp/central_abx_v287.js').write_text(new,encoding='utf-8')
+          print('Restaurado solo calculo antibioticos:',len(old),'->',len(new),'bytes')
+          PY
+          node --check /tmp/central_abx_v287.js
+          grep -q 'mxAbxVerifiedSequenceV286' MACROXEL-VISORES-CENTRAL/CONTROL-CENTRAL/index.html
+      - name: Publicar solo Control Central
+        shell: bash
+        run: |
+          if git diff --quiet -- MACROXEL-VISORES-CENTRAL/CONTROL-CENTRAL/index.html; then
+            echo 'Bloque antibioticos ya sincronizado'
+            exit 0
+          fi
+          git config user.name 'Sistemas Macroxel'
+          git config user.email 'sistemasmacroxel@gmail.com'
+          git add -- MACROXEL-VISORES-CENTRAL/CONTROL-CENTRAL/index.html
+          git commit -m 'Restaura calculos de antibioticos desde respaldo v286 sin alterar transferencias'
+          git push origin HEAD:main
