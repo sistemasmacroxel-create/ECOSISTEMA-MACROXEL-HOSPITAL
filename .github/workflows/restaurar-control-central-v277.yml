@@ -1,0 +1,51 @@
+name: Restaurar Control Central a v277 (solo visor de transferencias)
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/restaurar-control-central-v277.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  restaurar-control-central:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Obtener repositorio actual
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Restaurar HTML exacto desde ZIP v277 y validar hash
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const zlib=require('zlib');
+          const crypto=require('crypto');
+          const source='tools/restauracion_v277_control_central.br.b64';
+          const target='MACROXEL-VISORES-CENTRAL/CONTROL-CENTRAL/index.html';
+          const expected='e3902e1ae017840a638485a005e9e3a879d4b25ed3faa256d9871227790b7d8f';
+          const raw=fs.readFileSync(source,'utf8').replace(/\s/g,'');
+          const bytes=zlib.brotliDecompressSync(Buffer.from(raw,'base64'));
+          const digest=crypto.createHash('sha256').update(bytes).digest('hex');
+          if (digest!==expected) throw new Error('El visor no coincide con el archivo v277: '+digest);
+          if (!bytes.toString('utf8').includes('Transferencias')) throw new Error('El visor carece de transferencias');
+          fs.writeFileSync(target,bytes);
+          console.log('Control Central restaurado (solo el archivo del visor). SHA-256 '+digest+', bytes '+bytes.length);
+          NODE
+      - name: Publicar exclusivamente el visor Control Central
+        shell: bash
+        run: |
+          TARGET='MACROXEL-VISORES-CENTRAL/CONTROL-CENTRAL/index.html'
+          if git diff --quiet -- "$TARGET"; then
+            echo 'Control Central ya coincide exactamente con v277'
+            exit 0
+          fi
+          git config user.name 'Sistemas Macroxel'
+          git config user.email 'sistemasmacroxel@gmail.com'
+          git add -- "$TARGET"
+          git diff --cached --check
+          git commit -m 'Restaurar visor Control Central de transferencias a fuente v277'
+          git push origin HEAD:main
