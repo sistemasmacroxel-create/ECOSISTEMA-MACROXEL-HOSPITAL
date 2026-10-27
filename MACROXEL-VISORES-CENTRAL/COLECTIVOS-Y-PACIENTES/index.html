@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Macroxel · Colectivos y Pacientes</title>
+  <style>
+    html,body{margin:0;width:100%;height:100%;background:#03142b;color:#fff;font-family:system-ui,-apple-system,Segoe UI,sans-serif}
+    body{display:grid;place-items:center}
+    #mxBoot{max-width:560px;padding:28px;text-align:center;font-weight:700;line-height:1.45}
+    #mxBoot small{display:block;margin-top:8px;opacity:.78;font-weight:500}
+  </style>
+</head>
+<body>
+<div id="mxBoot">Conectando Colectivos / Pacientes con Macroxel Hospital…<small>Se conserva la ruta de pedidos del Sistema Principal.</small></div>
+<script>
+/*
+ MACROXEL RECUPERACIÓN CANÓNICA v234 · 2026-10-05
+ Motivo: la carpeta COLECTIVOS-Y-PACIENTES fue retirada del repositorio central,
+ mientras el conector público continuó apuntando a esta ruta. Eso dejó equipos
+ ejecutando una copia de caché antigua y rompió la recepción fiable de pedidos.
+
+ La fuente recuperada es autocontenida y corresponde al último commit válido
+ anterior a la eliminación del 2026-10-02. Se carga desde un commit inmutable
+ para que una limpieza futura del árbol principal no vuelva a cortar este visor.
+
+ Contrato conservado por la fuente recuperada:
+   - enlace operativo antes de validar/activar;
+   - /service_orders/<BRANCH>/<orderId> para Colectivos y Pacientes;
+   - source/sourceApp = VISOR_COLECTIVOS_Y_PACIENTES / COLECTIVOS_Y_PACIENTES;
+   - misma Firebase operativa autorizada por el Sistema Principal.
+*/
+(()=>{
+  'use strict';
+  const SOURCE='https://raw.githubusercontent.com/sistemasmacroxel-create/ECOSISTEMA-MACROXEL-HOSPITAL/d5c3230c7093a3bb71a40149ef42efe82c06f954/MACROXEL-VISORES-CENTRAL/COLECTIVOS-Y-PACIENTES/index.html';
+  const CACHE='macroxel-colectivos-canonical-v234';
+  const KEY=SOURCE;
+  const render=html=>{document.open();document.write(html);document.close()};
+  const valid=html=>typeof html==='string'&&html.length>500000&&/VISOR_COLECTIVOS_Y_PACIENTES/.test(html)&&/service_orders/.test(html);
+  (async()=>{
+    try{
+      const r=await fetch(SOURCE+'?mxv=234',{cache:'no-store',mode:'cors'});
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      const html=await r.text();
+      if(!valid(html))throw new Error('Fuente canónica incompleta');
+      if('caches' in window){try{const c=await caches.open(CACHE);await c.put(KEY,new Response(html,{headers:{'Content-Type':'text/html; charset=utf-8'}}))}catch(_){}}
+      render(html);
+    }catch(error){
+      if('caches' in window){
+        try{const c=await caches.open(CACHE),hit=await c.match(KEY);if(hit){const html=await hit.text();if(valid(html)){render(html);return}}}catch(_){}
+      }
+      const box=document.getElementById('mxBoot');
+      if(box)box.innerHTML='No se pudo cargar Colectivos / Pacientes.<small>Verifica Internet y vuelve a abrir el visor. No se cambió la URL de licencias ni la Firebase del sistema.</small>';
+      console.error('[MACROXEL COLECTIVOS v234]',error);
+    }
+  })();
+})();
+</script>
+</body>
+</html>
