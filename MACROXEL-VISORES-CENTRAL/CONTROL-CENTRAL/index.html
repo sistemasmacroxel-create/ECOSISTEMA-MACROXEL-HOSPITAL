@@ -5264,6 +5264,29 @@ function mxAbxApplyPrincipalCapacity(node={}){
   state.rows=rows.filter(r=>r&&typeof r==='object'&&N(r.existencia)>0).map(r=>{const existence=Math.max(0,N(r.existencia)),pending=Math.max(0,N(r.pendienteComprometido)),free=Math.max(0,N(r.disponibleNuevo)),avg=Math.max(0,N(r.promedioColectivo)),estimated=r.tratamientosEstimados===null||r.tratamientosEstimados===undefined?null:Math.max(0,Math.floor(N(r.tratamientosEstimados))),activeCount=Math.max(0,Math.floor(N(r.tratamientosActivos))),deficit=Math.max(0,pending-existence),cannot=free<=0||(avg>0&&free<avg);return{key:K(r.clave),clave:T(r.clave),descripcion:T(r.descripcion||r.clave),existence,requested:Math.max(0,N(r.solicitadoTotal)),supplied:Math.max(0,N(r.yaSurtido)),pending,committed:pending,free,after:free,reserve:0,deficit,avg,avg30:Math.max(0,N(r.promedio30)),median30:Math.max(0,N(r.mediana30)),sample30:Math.max(0,Math.floor(N(r.folios30))),estimated,activeCount,active:[],base:T(r.base||'SISTEMA PRINCIPAL'),referenceDate:T(r.referenceDate),stale:Math.max(0,Math.floor(N(r.staleExcluded))),cannot}}).sort((a,b)=>b.existence-a.existence||a.descripcion.localeCompare(b.descripcion,'es'));
   state.capacityUpdatedAt=T(node?.updatedAt);state.source='principal_capacity';state.at=Date.now();return true;
 }
+async function mxAbxStockFallbackV283(branch,meta,capacity){
+  if(!meta||String(meta.sourceAuthority||'')!=='INVENTARIO_PRINCIPAL'||N(meta.seq)<=0)return false;
+  let raw;try{raw=await get('/inventory_cpm_totals/'+branch+'/items')}catch(_e){return false}
+  if(raw==null)return false;
+  const records=Array.isArray(raw)?raw:Object.values(raw.items||raw);
+  const previous=new Set(mxAbxValues(capacity?.items||{}).map(r=>K(r.clave||r.c)).filter(Boolean));
+  let catalog=[];
+  try{const res=await window.mxCpmCache?.syncCatalog?.(false);catalog=Array.isArray(res?.catalog)?res.catalog:[]}catch(_e){}
+  const info=new Map(catalog.map(r=>[K(r.clave||r.csg||r.c),r]).filter(x=>x[0]));
+  const rows=[];
+  for(const r of records){
+    if(!r||typeof r!=='object')continue;
+    const clave=T(r.c||r.clave||r.codigo||r.csg),key=K(clave),existence=Math.max(0,N(r.e??r.existencia??r.total));
+    if(!key||!existence)continue;
+    const p=info.get(key)||{},descripcion=T(r.d||r.descripcion||r.nombre||p.descripcion||clave);
+    const metaAbx={descripcion,clasificacion:r.cl||r.clasificacion||r.one?.[7]||p.clasificacion||'',restriccion:r.rs||r.restriccion||r.one?.[8]||p.restriccion||''};
+    if(!isAbxMeta(metaAbx)&&!previous.has(key)&&r.antibiotico!==true&&r.isAntibiotico!==true)continue;
+    rows.push({clave,descripcion,existence});
+  }
+  rows.sort((a,b)=>b.existence-a.existence||a.descripcion.localeCompare(b.descripcion,'es'));
+  state.rows=rows;state.source='inventory_stock_only';state.at=Date.now();state.capacityUpdatedAt='';
+  return true;
+}
 async function load(force=false){
   if(!force&&state.at&&Date.now()-state.at<60000&&state.rows.length)return state;if(busy)return busy;
   busy=(async()=>{const branch=encodeURIComponent(cfg().branch);
@@ -5278,6 +5301,7 @@ async function load(force=false){
       (matchesRevision||(!T(inventoryMeta?.revision)&&(matchesSeq||(inventoryTime>0&&capacityTime>=inventoryTime))));
     if(verified&&mxAbxApplyPrincipalCapacity(capacity))return state;
     // No mostrar 135 'disponibles' si corresponde a otra fotografía del inventario.
+    if(await mxAbxStockFallbackV283(branch,inventoryMeta,capacity))return state;
     state.rows=[];state.source='inventory_pending_capacity';state.capacityUpdatedAt='';state.at=Date.now();return state;
     const hub=window.mxSharedInventoryHub;if(!hub)throw new Error('Inventario compartido no disponible.');
     const [stock,full,controls,patients,catalog,history,orders]=await Promise.all([hub.syncStocks(force).catch(()=>({items:[]})),get('/inventory_visor/'+branch+'/products').catch(()=>({})),get('/ecosystem_controls/'+branch).catch(()=>({})),get('/antibiotic_patient_list/'+branch).catch(()=>({})),get('/patient_catalog/'+branch).catch(()=>({})),get('/antibiotic_patient_history/'+branch).catch(()=>({})),get('/service_orders/'+branch).catch(()=>({}))]);
@@ -5290,6 +5314,12 @@ function abxShortDescription(v){const full=T(v).replace(/\s+/g,' ').trim();if(fu
 function filterRows(q=''){q=K(q);return q?state.rows.filter(r=>K(r.clave).includes(q)||K(r.descripcion).includes(q)):state.rows}
 function renderAntibiotics(){
   const body=document.getElementById('transferAntibioticsBody'),status=document.getElementById('transferAntibioticsStatus'),alert=document.getElementById('transferAntibioticsAlert');if(!body)return;
+  if(state.source==='inventory_stock_only'){
+    const rows=filterRows(document.getElementById('transferAntibioticsQ')?.value);
+    body.innerHTML=rows.length?rows.map(r=>'<tr><td><b>'+E(abxShortKey(r.clave))+'</b></td><td>'+E(abxShortDescription(r.descripcion))+'</td><td><b>'+Math.round(r.existence)+'</b></td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>SOLO EXISTENCIA</td></tr>').join(''):'<tr><td colspan="10" class="empty">No se identificaron antibióticos con existencias verificadas. Revisa su clasificación en Inventario.</td></tr>';
+    if(status)status.textContent='Existencias físicas verificadas desde Inventario Principal. Compromisos, reserva y disponible pendientes de cálculo; no utilizar el total físico como capacidad para nuevos tratamientos.';
+    if(alert)alert.classList.add('mx-hidden');return;
+  }
   const rows=filterRows(document.getElementById('transferAntibioticsQ')?.value),danger=state.rows.filter(r=>r.cannot);
   body.innerHTML=rows.length?rows.map(r=>`<tr class="${r.cannot?'mx-tabx-danger':''}"><td><b class="mx-tabx-key-short" title="${E(r.clave)}">${E(abxShortKey(r.clave))}</b></td><td title="${E(r.descripcion)}"><span class="mx-tabx-drug-short">${E(abxShortDescription(r.descripcion))}</span></td><td><span class="mx-tabx-num">${Math.round(r.existence)}</span></td><td><span class="mx-tabx-num">${Math.round(r.requested)}</span><span class="mx-tabx-mini">${Math.max(0,N(r.activeCount??r.active?.length))} tratamiento(s) activo(s) · ${r.base}${r.stale?` · ${r.stale} anterior(es) excluido(s)`:''}</span></td><td><span class="mx-tabx-num">${Math.round(r.supplied)}</span></td><td><span class="mx-tabx-num">${Math.round(r.pending)}</span><span class="mx-tabx-mini">Piezas aún comprometidas</span></td><td><span class="mx-tabx-num">${Math.round(r.free)}</span></td><td><span class="mx-tabx-num">${r.avg>0?r.avg.toLocaleString('es-MX',{maximumFractionDigits:1}):'—'}</span><span class="mx-tabx-mini">Mediana 30 días ${r.median30>0?r.median30.toLocaleString('es-MX',{maximumFractionDigits:1}):'—'} · ${r.sample30} folio(s)</span></td><td><span class="mx-tabx-num mx-tabx-estimated">${r.estimated==null?'—':r.estimated}</span></td><td><span class="mx-tabx-state ${r.cannot?'bad':'ok'}">${r.cannot?'🔴 SIN CAPACIDAD PARA OTRO':'🟢 PUEDE ABRIR NUEVO'}</span></td></tr>`).join(''):`<tr><td colspan="10" class="empty">${state.source==='inventory_pending_capacity'?'Datos en actualización: no se muestra disponibilidad desactualizada.':'Sin coincidencias.'}</td></tr>`;
   if(status)status.textContent=state.source==='inventory_pending_capacity'?'Capacidad pendiente de sincronización con Inventario Principal; no se muestran cantidades antiguas. Abre el principal conectado para publicar la actualización.':state.source==='principal_capacity'?`${state.rows.length} antibiótico(s) con existencia · cantidades publicadas directamente por el Sistema Principal${state.capacityUpdatedAt?` · actualizado ${new Date(state.capacityUpdatedAt).toLocaleString('es-MX')}`:''}.`:`${state.rows.length} antibiótico(s) con existencia · respaldo reconstruido localmente; actualiza el Sistema Principal para recibir las cantidades canónicas. ${state.rows.reduce((a,r)=>a+r.stale,0)} tratamiento(s) anterior(es) excluido(s).`;
