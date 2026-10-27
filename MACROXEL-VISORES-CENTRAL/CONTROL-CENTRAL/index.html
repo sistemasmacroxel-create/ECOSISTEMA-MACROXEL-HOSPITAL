@@ -5289,7 +5289,14 @@ async function mxAbxStockFallbackV283(branch,meta,capacity){
 }
 async function load(force=false){
   if(!force&&state.at&&Date.now()-state.at<60000&&state.rows.length)return state;if(busy)return busy;
-  busy=(async()=>{const branch=encodeURIComponent(cfg().branch);
+  busy=(async()=>{
+  let configuration=cfg();
+  const bound=String(window.mxFixedPrincipalBinding?.systemId||'').trim().toUpperCase();
+  if(/^MACROXEL-[A-Z0-9_-]{4,}$/.test(bound)&&bound!==String(configuration.branch||'').toUpperCase()){
+    try{await window.mxFixedPrincipalBinding?.resolve?.(false)}catch(_e){}
+    configuration=cfg();
+  }
+  const branch=encodeURIComponent(String(configuration.branch||configuration.unitId||bound||'HGAM').toUpperCase());
     const [capacity,inventoryMeta]=await Promise.all([
       get('/antibiotic_capacity/'+branch).catch(()=>null),
       get('/inventory_cpm_totals/'+branch+'/meta').catch(()=>null)
