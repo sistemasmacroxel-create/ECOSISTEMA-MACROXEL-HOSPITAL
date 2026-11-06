@@ -119,7 +119,13 @@
       if(!dir?.value){dir?.focus();const st=$('transferInventoryStatus');if(st)st.textContent='Código escaneado: '+item.key+'. Selecciona Almacén → Estantes o Estantes → Almacén para continuar.';return;}
       // La búsqueda existente decide qué lotes y cantidades están disponibles.
       await new Promise(resolve=>setTimeout(resolve,180));
-      const matches=[...document.querySelectorAll('#transferResults [data-prod-i]')];
+      let matches=[...document.querySelectorAll('#transferResults [data-prod-i]')];
+      if(!matches.length && typeof window.mxTransferBackgroundSync==='function'){
+        await window.mxTransferBackgroundSync(false).catch(()=>{});
+        q.dispatchEvent(new Event('input',{bubbles:true}));
+        await new Promise(resolve=>setTimeout(resolve,180));
+        matches=[...document.querySelectorAll('#transferResults [data-prod-i]')];
+      }
       const selected=matches.filter(b=>{const val=(b.querySelector('.tr-key')?.textContent||'').trim();return val===item.key||val.endsWith(item.key.slice(-7));});
       if(selected.length===1)selected[0].click();
       else if(matches.length===1)matches[0].click();
@@ -131,10 +137,15 @@
       // el código físico del lote; en otro caso el usuario elige su lote.
       if(trackedCode){
         const lotsModal=$('transferLotsModal');
-        if(lotsModal?.classList.contains('show')){
-          const options=[...lotsModal.querySelectorAll('[data-lot-i]')];
-          const exact=options.filter(b=>(b.querySelector('.tr-desc')?.textContent||'').includes('Código '+trackedCode));
-          if(exact.length===1)exact[0].click();
+        for(let attempt=0;attempt<16;attempt++){
+          if($('transferQtyModal')?.classList.contains('show'))break;
+          if(lotsModal?.classList.contains('show')){
+            const options=[...lotsModal.querySelectorAll('[data-lot-i]')];
+            const exact=options.filter(b=>((b.querySelector('.tr-desc')?.textContent||'').split('Código ').pop().trim()===trackedCode));
+            if(exact.length===1)exact[0].click();
+            break;
+          }
+          await new Promise(resolve=>setTimeout(resolve,150));
         }
       }
     }catch(e){
