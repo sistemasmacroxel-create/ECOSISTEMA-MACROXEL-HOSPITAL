@@ -861,10 +861,10 @@ window.CPM_CATALOG = [{"id":"0022.00","full":"010.000.0022.00","name":"CASEINATO
       const lote=String(l.lot||'').trim();
       const caducidad=String(l.expiry||'').trim();
       const raw=String(l.units??'').trim();
-      if(!/^\\d+$/.test(raw)||!Number.isSafeInteger(Number(raw)))
+      if(!/^\d+$/.test(raw)||!Number.isSafeInteger(Number(raw)))
         {notify('Revisa las piezas de cada caja antes de enviar al conteo.',true);return;}
-      const normalizedCode=clave.replace(/\\D/g,'');
-      const key=JSON.stringify([normalizedCode,lote.toUpperCase().replace(/\\s+/g,''),caducidad]);
+      const normalizedCode=clave.replace(/\D/g,'');
+      const key=JSON.stringify([normalizedCode,lote.toUpperCase().replace(/\s+/g,''),caducidad]);
       const current=grouped.get(key);
       const total=Number(raw)+(current?.piezas||0);
       if(!Number.isSafeInteger(total)||total>999999)
