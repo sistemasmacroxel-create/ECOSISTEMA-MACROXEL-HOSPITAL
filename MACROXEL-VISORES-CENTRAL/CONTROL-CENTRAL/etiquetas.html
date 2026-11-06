@@ -148,6 +148,9 @@
  .print-sheet .label-design .label-qr{width:27%;right:3%;bottom:5.5%}
 }
 
+/* Botones compactos de descarga PDF */
+#pdf-btn,#pdf-btn-bottom{padding:9px 13px;min-width:60px;font-weight:800}
+#pdf-btn-bottom{display:flex;width:max-content;min-width:75px;margin-left:auto}
 </style>
   
   
@@ -157,13 +160,12 @@
   <div class="app-shell">
     <header class="topbar">
       <div class="brand-lockup">
-        <div class="brand-mark" aria-hidden="true">M<span>+</span></div>
         <div><div class="brand-overline">SISTEMAS MACROXEL</div><strong>Etiquetas de almacén</strong></div>
       </div>
       <div class="topbar-actions">
         <span class="catalog-pill" id="catalog-count">CPM · 1,486 productos</span>
         <button type="button" class="btn btn-outline top-print" id="print-btn">↗ Imprimir</button>
-        <button type="button" class="btn btn-primary top-pdf" id="pdf-btn">↓ Descargar PDF</button>
+        <button type="button" class="btn btn-primary top-pdf" id="pdf-btn" aria-label="Descargar PDF" title="Descargar PDF">PDF</button>
       </div>
     </header>
 
@@ -239,7 +241,7 @@
         <div class="heading-row"><div><h2 id="preview-title">Vista de impresión</h2><p class="subtext">Cada página tamaño carta contiene tres etiquetas.</p></div></div>
         <div class="preview-board"><div id="screen-page" class="paper-screen"><div class="preview-placeholder"><div class="preview-placeholder-icon">▥</div><strong>Tu hoja aparecerá aquí</strong><span>Agrega una o más etiquetas para previsualizarlas</span></div></div></div>
         <div class="pager"><button type="button" id="prev-page" class="small-button" disabled aria-label="Página anterior">‹</button><span id="page-info">Página 0 de 0</span><button type="button" id="next-page" class="small-button" disabled aria-label="Página siguiente">›</button></div>
-        <div class="preview-footer"><div><span id="footer-label-count">0 etiquetas</span><b id="footer-page-count">0 hojas carta</b></div><button type="button" id="pdf-btn-bottom" class="btn btn-primary btn-block">↓ Descargar PDF</button></div>
+        <div class="preview-footer"><div><span id="footer-label-count">0 etiquetas</span><b id="footer-page-count">0 hojas carta</b></div><button type="button" id="pdf-btn-bottom" class="btn btn-primary" aria-label="Descargar PDF" title="Descargar PDF">PDF</button></div>
       </aside>
     </main>
     <footer class="app-footer"><span>MACROXEL · Etiquetas CPM</span><span>Funciona sin conexión · Tus lotes y etiquetas permanecen en este navegador</span></footer>
@@ -490,11 +492,18 @@ window.CPM_CATALOG = [{"id":"0022.00","full":"010.000.0022.00","name":"CASEINATO
       notify(item.copies === 1 ? 'Etiqueta agregada.' : `${item.copies} etiquetas agregadas.`);
     }
     saveQueue(); pageIndex = 0; render(); clearForm();
-    // Dejar lista la siguiente búsqueda tras guardar correctamente la etiqueta.
+    // Regresar al buscador NUMERICO en el mismo clic. El enfoque inmediato
+    // conserva la activacion de usuario necesaria para abrir el teclado en movil.
+    elements.search.setAttribute('inputmode','numeric');
+    $('mxLabelKeyboardToggle').textContent='ABC';
+    $('mxLabelKeyboardToggle').title='Cambiar a teclado de letras';
+    elements.search.scrollIntoView({block:'center',behavior:'instant'});
+    elements.search.focus();
+    try{elements.search.setSelectionRange(0,0);}catch(_){}
+    // Respaldo visual si el navegador desplaza contenido al mostrar el teclado.
     requestAnimationFrame(()=>{
-      elements.search.scrollIntoView({block:'center',behavior:'smooth'});
-      elements.search.focus({preventScroll:true});
-      elements.search.select();
+      if(document.activeElement!==elements.search)elements.search.focus();
+      elements.search.scrollIntoView({block:'nearest',behavior:'instant'});
     });
   }
   function saveQueue() {
