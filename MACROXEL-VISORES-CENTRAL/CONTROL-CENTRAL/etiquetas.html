@@ -185,8 +185,8 @@
           <label for="search-input">Buscar clave o medicamento</label>
           <div class="search-box">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16 16 4 4"/></svg>
-            <input type="search" id="search-input" autocomplete="off" spellcheck="false" placeholder="Ej. 0570, 0570.00 o hidralazina" aria-autocomplete="list" aria-controls="search-results" aria-expanded="false" />
-            <kbd>/</kbd>
+            <input type="search" id="search-input" inputmode="numeric" enterkeyhint="search" autocomplete="off" spellcheck="false" placeholder="Ej. 0570, 0570.00 o hidralazina" aria-autocomplete="list" aria-controls="search-results" aria-expanded="false" />
+            <button id="mxLabelKeyboardToggle" type="button" title="Cambiar a teclado de letras" aria-label="Cambiar tipo de teclado" style="border:1px solid #c1d3d9;border-radius:8px;background:#e8f4f4;color:#124554;padding:8px 10px;font-weight:800;min-width:48px">ABC</button>
           </div>
           <div class="search-results" id="search-results" role="listbox" hidden></div>
           <p class="field-tip">Admite claves incompletas sin perder los ceros: <b>0570</b>, <b>0570.00</b>, <b>570</b>.</p>
@@ -217,7 +217,7 @@
           <div class="field-group"><label for="units-input">Piezas</label><input id="units-input" type="number" min="0" max="999999" step="1" placeholder="Ej. 30" inputmode="numeric" /></div>
           <div class="field-group"><label for="copies-input">Copias de etiqueta</label><input id="copies-input" type="number" min="1" max="100" step="1" value="1" inputmode="numeric" /></div>
         </div>
-        <div class="form-actions"><button type="button" id="reset-form" class="btn btn-text">Limpiar campos</button><button type="button" id="add-btn" class="btn btn-primary btn-wide">＋ Agregar a la hoja</button></div>
+        <div class="form-actions"><button type="button" id="reset-form" class="btn btn-text">Limpiar campos</button><button type="button" id="add-btn" class="btn btn-primary btn-wide">＋ Generar etiqueta</button></div>
         <p id="form-message" class="message" role="status" aria-live="polite"></p>
         <div class="step-bottom"><span>¿Terminaste de agregar productos?</span><button type="button" id="go-batch" class="btn btn-outline">Ver etiquetas preparadas →</button></div>
 
@@ -284,6 +284,16 @@ window.CPM_CATALOG = [{"id":"0022.00","full":"010.000.0022.00","name":"CASEINATO
     prev: $('prev-page'), next: $('next-page'), pageInfo: $('page-info'),
     toast: $('toast')
   };
+  // Teclado numérico por defecto, con cambio manual a letras.
+  $('mxLabelKeyboardToggle').addEventListener('click',()=>{
+    const numeric=elements.search.getAttribute('inputmode')!=='numeric';
+    elements.search.setAttribute('inputmode',numeric?'numeric':'text');
+    const button=$('mxLabelKeyboardToggle');
+    button.textContent=numeric?'ABC':'123';
+    button.title=numeric?'Cambiar a teclado de letras':'Cambiar a teclado numérico';
+    elements.search.blur();
+    setTimeout(()=>elements.search.focus({preventScroll:true}),40);
+  });
   $('catalog-count').textContent = `CPM · ${CATALOG.length.toLocaleString('es-MX')} productos`;
 
   function setActiveTab(tab, focusTab = false) {
@@ -385,7 +395,12 @@ window.CPM_CATALOG = [{"id":"0022.00","full":"010.000.0022.00","name":"CASEINATO
     elements.expiry.value=formatInventoryCad(row.caducidad||row.cad||'');
     const available=Math.max(0,Math.floor(Number(row.almacen||0)+Number(row.estantes||0)));
     if(available>0)elements.units.value=String(available);
-    setFormMessage('Lote del sistema principal seleccionado. Puedes editar lote, caducidad y piezas antes de agregar la etiqueta.');
+    setFormMessage('Lote seleccionado. Verifica los datos y presiona Generar etiqueta.');
+    // Mostrar datos del lote inmediatamente, también al seleccionarse el único disponible.
+    requestAnimationFrame(()=>{
+      elements.lot.scrollIntoView({block:'center',behavior:'smooth'});
+      elements.lot.focus({preventScroll:true});
+    });
   }
   async function loadInventoryLots(product){
     const requestId=++lotsRequestId;
@@ -439,7 +454,7 @@ window.CPM_CATALOG = [{"id":"0022.00","full":"010.000.0022.00","name":"CASEINATO
     lotsRequestId++;
     $('mxInventoryLotsPanel').hidden = true;
     $('mxInventoryLotsRows').innerHTML = '';
-    elements.add.textContent = '＋ Agregar a la hoja';
+    elements.add.textContent = '＋ Generar etiqueta';
     setFormMessage();
     closeSuggestions();
   }
@@ -475,6 +490,12 @@ window.CPM_CATALOG = [{"id":"0022.00","full":"010.000.0022.00","name":"CASEINATO
       notify(item.copies === 1 ? 'Etiqueta agregada.' : `${item.copies} etiquetas agregadas.`);
     }
     saveQueue(); pageIndex = 0; render(); clearForm();
+    // Dejar lista la siguiente búsqueda tras guardar correctamente la etiqueta.
+    requestAnimationFrame(()=>{
+      elements.search.scrollIntoView({block:'center',behavior:'smooth'});
+      elements.search.focus({preventScroll:true});
+      elements.search.select();
+    });
   }
   function saveQueue() {
     try { localStorage.setItem(STORE_KEY, JSON.stringify(queue)); } catch (_) { /* Navegador sin almacenamiento; sesión actual sigue funcionando. */ }
@@ -834,6 +855,5 @@ window.CPM_CATALOG = [{"id":"0022.00","full":"010.000.0022.00","name":"CASEINATO
 })();
 
 </script>
-<script src="mx-etiquetas-flujo.js?v=20261105e" defer></script>
 </body>
 </html>
