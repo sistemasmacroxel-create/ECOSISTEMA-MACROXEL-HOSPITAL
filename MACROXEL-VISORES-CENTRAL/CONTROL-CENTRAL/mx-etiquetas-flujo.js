@@ -7,6 +7,10 @@ const $=id=>document.getElementById(id);
 function init(){
  const search=$('search-input'),add=$('add-btn'),lots=$('mxInventoryLotsRows'),lot=$('lot-input'),expiry=$('expiry-input');
  if(!search||!add||!lots||!lot||!expiry)return;
+ // El código original restaura el texto al limpiar; mantener la nueva leyenda.
+ function renameAdd(){if(add.textContent.includes('Agregar a la hoja'))add.textContent=add.textContent.replace('Agregar a la hoja','Generar etiqueta');}
+ renameAdd();
+ new MutationObserver(renameAdd).observe(add,{childList:true,characterData:true,subtree:true});
  const box=search.closest('.search-box')||search.parentElement;
  if(!box)return;
  search.setAttribute('inputmode','numeric');
