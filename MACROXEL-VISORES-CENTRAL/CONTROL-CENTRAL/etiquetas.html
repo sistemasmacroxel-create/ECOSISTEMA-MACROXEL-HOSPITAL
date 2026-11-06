@@ -241,7 +241,7 @@
 
       <section id="panel-batch" class="panel batch module-panel" role="tabpanel" aria-labelledby="tab-batch" hidden>
         <div class="section-top"><span class="eyebrow">02 / ORGANIZAR IMPRESIÓN</span><span class="step-indicator" id="label-count">0 etiquetas</span></div>
-        <div class="heading-row"><div><h2 id="batch-title">Etiquetas preparadas</h2><p class="subtext">Puedes combinar productos y lotes diferentes en un mismo PDF.</p></div><button id="clear-all" type="button" class="btn btn-text btn-danger" disabled>Vaciar</button></div>
+        <div class="heading-row"><div><h2 id="batch-title">Etiquetas preparadas</h2><p class="subtext">Puedes combinar productos y lotes diferentes en un mismo PDF.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end"><button id="mxLabelsSendWarehouse" type="button" class="btn btn-primary" title="Pasar los lotes preparados al conteo de Almacén">📦 Enviar a inventario Almacén</button><button id="clear-all" type="button" class="btn btn-text btn-danger" disabled>Vaciar</button></div></div>
         <div id="queue" class="queue" aria-live="polite"><div class="empty-queue"><span class="empty-icon" aria-hidden="true">▤</span><strong>Aún no tienes etiquetas</strong><p>Busca una clave CPM y agrégala para crear la primera.</p></div></div>
         <div class="step-bottom"><span>3 etiquetas por hoja tamaño carta.</span><button type="button" id="go-preview" class="btn btn-primary">Ver vista previa →</button></div>
       </section>
@@ -405,9 +405,10 @@ window.CPM_CATALOG = [{"id":"0022.00","full":"010.000.0022.00","name":"CASEINATO
   function chooseInventoryLot(row){
     elements.lot.value=String(row.lote||'');
     elements.expiry.value=formatInventoryCad(row.caducidad||row.cad||'');
-    const available=Math.max(0,Math.floor(Number(row.almacen||0)+Number(row.estantes||0)));
-    if(available>0)elements.units.value=String(available);
-    setFormMessage('Lote seleccionado. Verifica los datos y presiona Generar etiqueta.');
+    const available=Math.max(0,Math.floor(Number(row.almacen||0)));
+    // Las etiquetas de almacén no deben cargar piezas que están en Estantes.
+    elements.units.value=String(available);
+    setFormMessage('Lote seleccionado. Las piezas sugeridas corresponden SOLO a Almacén; corrige según el conteo físico antes de generar la etiqueta.');
     // Mostrar datos del lote inmediatamente, también al seleccionarse el único disponible.
     requestAnimationFrame(()=>{
       elements.lot.scrollIntoView({block:'center',behavior:'smooth'});
@@ -535,6 +536,7 @@ window.CPM_CATALOG = [{"id":"0022.00","full":"010.000.0022.00","name":"CASEINATO
     $('footer-label-count').textContent = total + (total === 1 ? ' etiqueta' : ' etiquetas');
     $('footer-page-count').textContent = Math.ceil(total / 3) + (Math.ceil(total/3)===1?' hoja carta':' hojas carta');
     $('clear-all').disabled = !queue.length;
+    $('mxLabelsSendWarehouse').disabled = !queue.length;
     elements.queue.innerHTML = queue.length ? queue.map((l,i)=> {
       const p=BY_ID.get(l.id);
       return `<article class="queue-card"><span class="queue-card-number">${i+1}</span><div class="queue-card-body"><div class="queue-card-top"><div><div class="queue-card-title">${esc(p.name)}</div><span class="queue-card-code">${esc(l.id)}</span></div><span class="queue-card-badge">× ${l.copies}</span></div><div class="queue-card-fields"><span>Lote: ${esc(l.lot||'—')}</span><span>Cad.: ${esc(l.expiry||'—')}</span><span>Pzs: ${esc(l.units||'—')}</span></div><div class="queue-card-actions"><button data-act="edit" data-uid="${esc(l.uid)}">Editar</button><button data-act="dup" data-uid="${esc(l.uid)}">Duplicar</button><button class="delete-action" data-act="del" data-uid="${esc(l.uid)}">Eliminar</button></div></div></article>`;
@@ -831,6 +833,27 @@ window.CPM_CATALOG = [{"id":"0022.00","full":"010.000.0022.00","name":"CASEINATO
   $('clear-product').addEventListener('click',clearForm);
   $('reset-form').addEventListener('click',clearForm);
   elements.add.addEventListener('click',addLabel);
+  // Enviar las cantidades FÍSICAS de los lotes preparados; las copias son impresiones, NO piezas.
+  $('mxLabelsSendWarehouse').addEventListener('click',async()=>{
+    if(!queue.length){notify('Primero prepara al menos una etiqueta.',true);return}
+    const items=queue.map(l=>({
+      clave:BY_ID.get(l.id)?.full||l.id,
+      lote:String(l.lot||''),
+      caducidad:String(l.expiry||''),
+      piezas:String(l.units??''),
+      copias:l.copies
+    }));
+    let host;
+    try{host=window.parent!==window?window.parent:window}catch(_e){host=window}
+    if(typeof host.mxInventoryCountStageFromLabels!=='function'){
+      notify('Abre Etiquetas desde el Visor Control Central actualizado para enviar el conteo a Almacén.',true);
+      return;
+    }
+    const btn=$('mxLabelsSendWarehouse');btn.disabled=true;
+    try{await host.mxInventoryCountStageFromLabels(items)}
+    catch(e){notify('No se pudo preparar el inventario: '+(e?.message||e),true)}
+    finally{btn.disabled=false}
+  });
   elements.queue.addEventListener('click',ev=> {
     const button=ev.target.closest('[data-act]');if(!button)return;
     const target=queue.find(q=>q.uid===button.dataset.uid);if(!target)return;
