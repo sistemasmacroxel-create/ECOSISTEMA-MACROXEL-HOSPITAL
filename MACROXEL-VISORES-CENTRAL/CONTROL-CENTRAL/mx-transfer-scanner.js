@@ -122,57 +122,39 @@
     }catch(_e){}
     return{key:raw,barcode:'',candidateCount:0};
   }
+  function decodeLabelQr(raw){
+    const value=String(raw??'').trim();
+    if(!value.startsWith('MXCPM1|'))return null;
+    const parts=value.split('|');
+    if(parts.length!==5)throw new Error('QR de etiqueta incompleto.');
+    const data=parts.slice(1).map(v=>decodeURIComponent(v));
+    return{clave:data[0],lote:data[1],caducidad:data[2],pzs:data[3]};
+  }
   async function handleCode(raw){
     if(busy||!clean(raw))return;
     busy=true;
     try{
-      notice('Buscando el producto escaneado...');
-      const item=await resolveCode(raw);
-      if(!item){notice('Escribe o escanea una clave válida.');return;}
-      trackedCode=item.barcode;
-      const q=$('transferQ');
-      if(!q){notice('No se encontró el buscador de Transferencias.');return;}
-      q.value=item.key;
-      q.dispatchEvent(new Event('input',{bubbles:true}));
-      const dir=$('transferDirection');
+      const structured=decodeLabelQr(raw);
+      const resolved=structured?null:await resolveCode(raw);
+      const payload=structured||{clave:resolved?.key||'',barcode:resolved?.barcode||'',pzs:1};
+      notice('Código leído. Validando lote y piezas con el inventario...');
+      if(!payload.clave)throw new Error('El código leído no corresponde a una clave CPM.');
+      if(typeof window.mxTransferScanAdd!=='function')throw new Error('No se cargó el carrito de Transferencias. Actualiza la página.');
+      const result=await window.mxTransferScanAdd(payload);
       stop();
-      const activeView=$('transferView');
-      if(activeView?.classList.contains('mx-hidden'))window.mxTransferStableNavigation?.open?.('transfer');
-      if(!dir?.value){dir?.focus();const st=$('transferInventoryStatus');if(st)st.textContent='Código escaneado: '+item.key+'. Selecciona Almacén → Estantes o Estantes → Almacén para continuar.';return;}
-      // La búsqueda existente decide qué lotes y cantidades están disponibles.
-      await new Promise(resolve=>setTimeout(resolve,180));
-      let matches=[...document.querySelectorAll('#transferResults [data-prod-i]')];
-      if(!matches.length && typeof window.mxTransferBackgroundSync==='function'){
-        await window.mxTransferBackgroundSync(false).catch(()=>{});
-        q.dispatchEvent(new Event('input',{bubbles:true}));
-        await new Promise(resolve=>setTimeout(resolve,180));
-        matches=[...document.querySelectorAll('#transferResults [data-prod-i]')];
+      const st=$('transferInventoryStatus');
+      if(st)st.textContent=result?.message||'No se pudo incorporar el código.';
+      if(!result?.ok){
+        const cartSt=$('transferSendStatus');
+        if(cartSt){cartSt.textContent=result?.message||'Código no encontrado.';cartSt.style.color='#991b1b';}
       }
-      const selected=matches.filter(b=>{const val=(b.querySelector('.tr-key')?.textContent||'').trim();return val===item.key||val.endsWith(item.key.slice(-7));});
-      if(selected.length===1)selected[0].click();
-      else if(matches.length===1)matches[0].click();
-      else{
-        const st=$('transferInventoryStatus');
-        if(st)st.textContent=(matches.length?'Selecciona el producto correcto entre los resultados: ':'No hay producto disponible para esta clave: ')+item.key;
-      }
-      // Si hay varios lotes, solo se elige automáticamente cuando coincide exactamente
-      // el código físico del lote; en otro caso el usuario elige su lote.
-      if(trackedCode){
-        const lotsModal=$('transferLotsModal');
-        for(let attempt=0;attempt<16;attempt++){
-          if($('transferQtyModal')?.classList.contains('show'))break;
-          if(lotsModal?.classList.contains('show')){
-            const options=[...lotsModal.querySelectorAll('[data-lot-i]')];
-            const exact=options.filter(b=>((b.querySelector('.tr-desc')?.textContent||'').split('Código ').pop().trim()===trackedCode));
-            if(exact.length===1)exact[0].click();
-            break;
-          }
-          await new Promise(resolve=>setTimeout(resolve,150));
-        }
-      }
+      $('transferQ').value=payload.clave;
+      $('transferQ').dispatchEvent(new Event('input',{bubbles:true}));
     }catch(e){
-      const st=$('transferInventoryStatus');if(st)st.textContent='No se pudo procesar el código: '+(e?.message||e);
+      const message='No se pudo agregar el escaneo: '+(e?.message||e);
       stop();
+      const st=$('transferInventoryStatus');if(st)st.textContent=message;
+      const cartSt=$('transferSendStatus');if(cartSt){cartSt.textContent=message;cartSt.style.color='#991b1b';}
     }finally{busy=false;}
   }
   function acceptedFormats(){
