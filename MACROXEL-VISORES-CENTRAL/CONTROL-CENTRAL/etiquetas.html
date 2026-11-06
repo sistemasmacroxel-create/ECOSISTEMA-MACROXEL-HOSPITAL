@@ -76,6 +76,19 @@
  .print-sheet .label-design .label-specs strong{font-size:18pt;font-weight:900;line-height:1.06}
 }
 
+
+.mx-inventory-lots{margin:15px 0;border:1px solid #cbdde4;border-radius:12px;background:#f7fbfc;padding:13px}
+.mx-inventory-lots[hidden]{display:none!important}
+.mx-lots-head{display:flex;justify-content:space-between;align-items:center;gap:9px}
+.mx-lots-head strong{font-size:13px;color:#123f50}
+.mx-lots-head button{border:1px solid #bdd5d9;background:#fff;color:#145567;border-radius:8px;padding:8px;font-size:12px;font-weight:800}
+#mxInventoryLotsStatus{font-size:11px;color:#55727c;margin:9px 0}
+.mx-lots-list{max-height:230px;overflow:auto;display:grid;gap:7px}
+.mx-lot-option{display:flex;align-items:center;justify-content:space-between;text-align:left;gap:8px;border:1px solid #d6e4e9;border-radius:9px;padding:11px;background:#fff;color:#173847;cursor:pointer}
+.mx-lot-option:hover,.mx-lot-option:focus-visible{border-color:#0d858b;background:#effafb}
+.mx-lot-option strong{font-size:13px}.mx-lot-option small{display:block;font-size:11px;color:#607c87;margin-top:3px}
+.mx-lot-qty{white-space:nowrap;font-size:11px;font-weight:800;color:#126f70}
+
 </style>
   
   
@@ -132,6 +145,12 @@
           <p class="field-tip">Puedes editar este texto solo para la etiqueta; el catálogo original no se modifica.</p>
         </div>
 
+        <div id="mxInventoryLotsPanel" class="mx-inventory-lots" hidden>
+          <div class="mx-lots-head"><strong>📦 Lotes y caducidades del inventario principal</strong><button type="button" id="mxRefreshLots" title="Consultar lotes nuevamente">↻ Actualizar</button></div>
+          <p id="mxInventoryLotsStatus" role="status">Consultando existencias...</p>
+          <div id="mxInventoryLotsRows" class="mx-lots-list"></div>
+          <p class="field-tip">Selecciona un lote para completar sus datos o escribe uno nuevo en los campos inferiores. Crear una etiqueta no modifica el inventario.</p>
+        </div>
         <div class="form-divider"><span>Datos del producto</span></div>
         <div class="fields-grid">
           <div class="field-group"><label for="lot-input">Lote</label><input id="lot-input" maxlength="70" placeholder="Ej. A25-042" autocomplete="off" /></div>
@@ -145,7 +164,7 @@
 
         <div class="how-it-works">
           <div class="tiny-icon" aria-hidden="true">▥</div>
-          <div><strong>Lista para escanear desde el celular</strong><p>Cada rótulo incluye un código de barras <b>Code 128</b> y un <b>QR</b>. Ambos contienen exactamente la clave CPM (por ejemplo <b>0570.00</b>).</p></div>
+          <div><strong>Lista para escanear desde el celular</strong><p>Cada etiqueta conserva la clave CPM en el <b>Code 128</b>. El <b>QR</b> incluye clave, lote, caducidad y piezas para que Transferencias pueda identificarlos automáticamente.</p></div>
         </div>
       </section>
 
@@ -179,6 +198,7 @@ window.CPM_CATALOG = [{"id":"0022.00","full":"010.000.0022.00","name":"CASEINATO
 window.CODE128_PATTERNS = ["212222","222122","222221","121223","121322","131222","122213","122312","132212","221213","221312","231212","112232","122132","122231","113222","123122","123221","223211","221132","221231","213212","223112","312131","311222","321122","321221","312212","322112","322211","212123","212321","232121","111323","131123","131321","112313","132113","132311","211313","231113","231311","112133","112331","132131","113123","113321","133121","313121","211331","231131","213113","213311","213131","311123","311321","331121","312113","312311","332111","314111","221411","431111","111224","111422","121124","121421","141122","141221","112214","112412","122114","122411","142112","142211","241211","221114","413111","241112","134111","111242","121142","121241","114212","124112","124211","411212","421112","421211","212141","214121","412121","111143","111341","131141","114113","114311","411113","411311","113141","114131","311141","411131","211412","211214","211232","2331112"];
 
 </script>
+<script src="qrcode-generator.js?v=20261105a"></script>
 <script>
 /* Macroxel - Etiquetas de almacén CPM. Sin dependencias de red. */
 (() => {
@@ -289,10 +309,70 @@ window.CODE128_PATTERNS = ["212222","222122","222221","121223","121322","131222"
     elements.chosenName.textContent = product.name;
     elements.chosenCode.textContent = 'CPM ' + product.id + ' · Clave completa ' + product.full;
     elements.search.value = product.id;
-    if (!preserveDescription) elements.desc.value = product.desc;
+    if (!preserveDescription) {elements.desc.value = product.desc;if(!editingId){elements.lot.value='';elements.expiry.value='';elements.units.value='';}}
+    void loadInventoryLots(product);
     closeSuggestions();
     setFormMessage();
   }
+
+  // Fuente autorizada de lotes: mismo inventario principal del Visor Control Central.
+  // Nunca se almacenan lotes inventados en el catálogo ni se modifican existencias aquí.
+  let lotsRequestId=0;
+  let currentLots=[];
+  function formatInventoryCad(v){
+    const s=String(v??'').trim();
+    const m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if(m)return m[3]+'/'+m[2]+'/'+m[1];
+    const month=s.match(/^(\d{4})-(\d{2})$/);
+    if(month)return month[2]+'/'+month[1];
+    return s;
+  }
+  function chooseInventoryLot(row){
+    elements.lot.value=String(row.lote||'');
+    elements.expiry.value=formatInventoryCad(row.caducidad||row.cad||'');
+    const available=Math.max(0,Math.floor(Number(row.almacen||0)+Number(row.estantes||0)));
+    if(available>0)elements.units.value=String(available);
+    setFormMessage('Lote del sistema principal seleccionado. Puedes editar lote, caducidad y piezas antes de agregar la etiqueta.');
+  }
+  async function loadInventoryLots(product){
+    const requestId=++lotsRequestId;
+    const panel=$('mxInventoryLotsPanel'),host=$('mxInventoryLotsRows'),status=$('mxInventoryLotsStatus');
+    panel.hidden=false;host.innerHTML='';currentLots=[];
+    status.textContent='Consultando lotes del sistema principal...';
+    try{
+      // Control Central y el iframe Etiquetas se publican bajo el mismo origen GitHub Pages.
+      const hub=(window.parent!==window&&window.parent?.mxSharedInventoryHub)||window.mxSharedInventoryHub;
+      if(!hub?.lots){status.textContent='El inventario principal no está disponible en esta ventana. Puedes capturar lote y caducidad manualmente.';return;}
+      const key=product.full;
+      const local=hub.localStocks?.()?.items||[];
+      const sum=local.find(r=>String(r.clave||'').replace(/\D/g,'').slice(-6)===key.replace(/\D/g,'').slice(-6));
+      let rows=await hub.lots(key,false,sum?.seq||0);
+      if(requestId!==lotsRequestId||selected?.id!==product.id)return;
+      rows=Array.isArray(rows)?rows:[];
+      currentLots=rows
+        .filter(r=>r&&String(r.lote||'').trim()&&Number(r.almacen||0)+Number(r.estantes||0)>0)
+        .map(r=>({...r,available:Math.max(0,Number(r.almacen||0))+Math.max(0,Number(r.estantes||0))}))
+        .sort((a,b)=>String(a.caducidad||'9999').localeCompare(String(b.caducidad||'9999')));
+      status.textContent=currentLots.length
+        ?'Selecciona un lote con existencia para completar lote, caducidad y piezas, o captura uno nuevo.'
+        :'No hay lotes con existencia para esta clave. Puedes crear su etiqueta manualmente.';
+      host.innerHTML=currentLots.map((r,i)=>
+        '<button type="button" class="mx-lot-option" data-mx-lot="'+i+'"><span><strong>Lote '+esc(r.lote)+'</strong><small>Caducidad '+esc(formatInventoryCad(r.caducidad||r.cad)||'—')+'</small><small>Almacén: '+Math.max(0,Number(r.almacen||0))+' · Estantes: '+Math.max(0,Number(r.estantes||0))+'</small></span><span class="mx-lot-qty">'+r.available+' pzs</span></button>'
+      ).join('');
+      if(currentLots.length===1&&!editingId&&!elements.lot.value.trim()&&!elements.expiry.value.trim())chooseInventoryLot(currentLots[0]);
+    }catch(err){
+      if(requestId!==lotsRequestId)return;
+      status.textContent='No fue posible consultar los lotes: '+(err?.message||err)+'. Puedes capturar la etiqueta manualmente.';
+    }
+  }
+  $('mxInventoryLotsRows').addEventListener('click',ev=>{
+    const button=ev.target.closest('[data-mx-lot]');
+    if(!button)return;
+    const row=currentLots[Number(button.dataset.mxLot)];
+    if(row)chooseInventoryLot(row);
+  });
+  $('mxRefreshLots').addEventListener('click',()=>{if(selected)void loadInventoryLots(selected);});
+
   function clearForm() {
     selected = null;
     editingId = null;
@@ -303,6 +383,9 @@ window.CODE128_PATTERNS = ["212222","222122","222221","121223","121322","131222"
     elements.expiry.value = '';
     elements.units.value = '';
     elements.copies.value = '1';
+    lotsRequestId++;
+    $('mxInventoryLotsPanel').hidden = true;
+    $('mxInventoryLotsRows').innerHTML = '';
     elements.add.textContent = '＋ Agregar a la hoja';
     setFormMessage();
     closeSuggestions();
@@ -403,24 +486,40 @@ window.CODE128_PATTERNS = ["212222","222122","222221","121223","121322","131222"
     const info=getCode128Bars(code);
     return `<svg class="barcode-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${info.width} 44" preserveAspectRatio="none" role="img" aria-label="Código de barras Code 128: ${esc(code)}" shape-rendering="crispEdges"><rect width="${info.width}" height="44" fill="white"/>${info.bars.map(([x,w])=>`<rect x="${x}" y="0" width="${w}" height="42" fill="black"/>`).join('')}</svg>`;
   }
-  function qrMatrix(product) {
-    if (product._qrMatrix) return product._qrMatrix;
-    const data=atob(product.qr);
-    const bits=[];
-    for (let i=0;i<441;i++) bits.push((data.charCodeAt(i>>3)&(1<<(7-(i&7))))!==0);
-    product._qrMatrix=bits;
-    return bits;
+  function qrPayload(label){
+    const product=BY_ID.get(label.id);
+    if(!product)return label.id;
+    if(!label.lot&&!label.expiry&&!label.units)return product.id;
+    return ['MXCPM1',product.id,label.lot||'',label.expiry||'',label.units||'']
+      .map((value,index)=>index?encodeURIComponent(value):value).join('|');
   }
-  function qrSvg(product) {
-    const m=qrMatrix(product);
-    const cells=[];
-    for(let i=0;i<441;i++) if(m[i]) cells.push(`<rect x="${4+i%21}" y="${4+Math.floor(i/21)}" width="1" height="1"/>`);
-    return `<svg class="qr-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 29 29" role="img" aria-label="QR de la clave ${esc(product.id)}" shape-rendering="crispEdges"><rect width="29" height="29" fill="white"/><g fill="#000">${cells.join('')}</g></svg>`;
+  const qrCache=new Map();
+  function qrMatrix(label) {
+    const payload=qrPayload(label);
+    if(qrCache.has(payload))return qrCache.get(payload);
+    if(typeof window.qrcode!=='function'){
+      if(payload.startsWith('MXCPM1|'))throw new Error('Generador QR no cargado. Revisa qrcode-generator.js.');
+      const product=BY_ID.get(label.id),raw=atob(product.qr),bits=[];
+      for(let i=0;i<441;i++)bits.push((raw.charCodeAt(i>>3)&(1<<(7-(i&7))))!==0);
+      return{bits,count:21};
+    }
+    const qr=window.qrcode(0,'M');qr.addData(payload,'Byte');qr.make();
+    const count=qr.getModuleCount(),bits=[];
+    for(let y=0;y<count;y++)for(let x=0;x<count;x++)bits.push(qr.isDark(y,x));
+    const result={bits,count};
+    if(qrCache.size>600)qrCache.clear();
+    qrCache.set(payload,result);
+    return result;
+  }
+  function qrSvg(label) {
+    const data=qrMatrix(label),n=data.count,size=n+8,cells=[];
+    for(let i=0;i<data.bits.length;i++)if(data.bits[i])cells.push('<rect x="'+(4+i%n)+'" y="'+(4+Math.floor(i/n))+'" width="1" height="1"/>');
+    return '<svg class="qr-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+size+' '+size+'" role="img" aria-label="QR CPM, lote, caducidad y piezas" shape-rendering="crispEdges"><rect width="'+size+'" height="'+size+'" fill="white"/><g fill="#000">'+cells.join('')+'</g></svg>';
   }
   function labelHtml(label) {
     const p=BY_ID.get(label.id);
     const nameClass = p.name.length > 82 ? 'name-very-long' : p.name.length > 52 ? 'name-long' : '';
-    return `<article class="label-design"><div class="label-kicker"><span class="label-brand">MACROXEL · CONTROL DE ALMACÉN</span><span class="label-cpm"><small>CLAVE CPM</small><strong class="label-key">${esc(p.id)}</strong></span></div><div class="label-title ${nameClass}">${esc(p.name)}</div><div class="label-description">${esc(label.desc)}</div><div class="label-specs"><div><b>LOTE</b><strong>${esc(label.lot||'________________')}</strong></div><div><b>CADUCIDAD</b><strong>${esc(label.expiry||'____ / ______')}</strong></div><div><b>PZS.</b><strong>${esc(label.units||'_____')}</strong></div></div><div class="label-codes"><div class="label-code-main">${barcodeSvg(p.id)}<div class="barcode-value">${esc(p.id)}</div></div>${qrSvg(p)}</div></article>`;
+    return `<article class="label-design"><div class="label-kicker"><span class="label-brand">MACROXEL · CONTROL DE ALMACÉN</span><span class="label-cpm"><small>CLAVE CPM</small><strong class="label-key">${esc(p.id)}</strong></span></div><div class="label-title ${nameClass}">${esc(p.name)}</div><div class="label-description">${esc(label.desc)}</div><div class="label-specs"><div><b>LOTE</b><strong>${esc(label.lot||'________________')}</strong></div><div><b>CADUCIDAD</b><strong>${esc(label.expiry||'____ / ______')}</strong></div><div><b>PZS.</b><strong>${esc(label.units||'_____')}</strong></div></div><div class="label-codes"><div class="label-code-main">${barcodeSvg(p.id)}<div class="barcode-value">${esc(p.id)}</div></div>${qrSvg(label)}</div></article>`;
   }
   function renderPreview() {
     const labels=expanded();
@@ -509,10 +608,13 @@ window.CODE128_PATTERNS = ["212222","222122","222221","121223","121322","131222"
     for (const [bx,bw] of info.bars) out+=rectCmd(x+bx*scale,y,bw*scale,h,'0 0 0');
     return out;
   }
-  function drawPdfQr(x,y,size,product) {
+  function drawPdfQr(x,y,size,label) {
+    const data=qrMatrix(label),n=data.count,full=n+8,unit=size/full;
     let output=rectCmd(x,y,size,size,'1 1 1');
-    const cells=qrMatrix(product), unit=size/29;
-    for(let i=0;i<441;i++) if(cells[i]) output+=rectCmd(x+(4+i%21)*unit,y+(25-Math.floor(i/21)-1)*unit,unit+.02,unit+.02,'0 0 0');
+    for(let i=0;i<data.bits.length;i++)if(data.bits[i]){
+      const row=Math.floor(i/n),column=i%n;
+      output+=rectCmd(x+(4+column)*unit,y+(n+4-row-1)*unit,unit+.02,unit+.02,'0 0 0');
+    }
     return output;
   }
   function drawPdfLabel(item,baseY) {
@@ -571,7 +673,7 @@ window.CODE128_PATTERNS = ["212222","222122","222221","121223","121322","131222"
     s+=lineCmd(x+18,baseY+96,x+w-18,baseY+96);
     s+=drawPdfBarcode(x+21,baseY+35,350,42,product.id);
     s+=textCmd(x+174,baseY+19,product.id,11,true,'0.12 0.18 0.21');
-    s+=drawPdfQr(x+w-98,baseY+11,76,product);
+    s+=drawPdfQr(x+w-107,baseY+9,84,item);
     return {draw:s,truncated:title.truncated||desc.truncated};
   }
   function assemblePdf(pagesContent) {
