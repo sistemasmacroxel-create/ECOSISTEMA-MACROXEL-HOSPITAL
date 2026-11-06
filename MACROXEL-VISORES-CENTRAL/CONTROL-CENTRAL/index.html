@@ -2381,6 +2381,59 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     setStatus(`Producto agregado al carrito. Escribe la siguiente clave para continuar.`,'ok');
     focusTransferSearch(true);
   }
+  // Entrada validada desde el escáner. No modifica existencias hasta Finalizar transferencia.
+  window.mxTransferScanAdd=async function(scanned={}){
+    const d=requireDirection();
+    if(!d)return{ok:false,message:'Selecciona el sentido de la transferencia antes de escanear.'};
+    const raw=txt(scanned.clave||scanned.key),digits=v=>txt(v).replace(/\D/g,'');
+    const base=digits(raw).slice(-6);
+    if(base.length!==6)return{ok:false,message:'El código leído no contiene una clave CPM válida.'};
+    try{await loadLots(false);}catch(e){return{ok:false,message:'No se pudo consultar el inventario: '+(e?.message||e)}}
+    const eligible=products.filter(p=>digits(p.clave).slice(-6)===base);
+    if(eligible.length!==1)return{ok:false,message:eligible.length?'Clave CPM ambigua; revisa la presentación.':'No se encontró la clave CPM en el inventario disponible.'};
+    const product=eligible[0];
+    let lots=[];
+    try{lots=await window.mxSharedInventoryHub.lots(product.clave,false,product.seq);}catch(e){return{ok:false,message:'No se pudieron consultar los lotes: '+(e?.message||e)}}
+    const normalized=(v)=>norm(v).replace(/\s+/g,'');
+    const expiryComparable=(v)=>{
+      const s=txt(v).trim();
+      let m=s.match(/^(\d{4})-(\d\d)(?:-\d\d)?$/);
+      if(m)return m[1]+'-'+m[2]+(s.length>7?'-'+s.slice(8,10):'');
+      m=s.match(/^(\d\d)\/(\d\d)\/(\d{4})$/);
+      if(m)return m[3]+'-'+m[2]+'-'+m[1];
+      m=s.match(/^(\d\d)\/(\d{4})$/);
+      if(m)return m[2]+'-'+m[1];
+      return normalized(s);
+    };
+    const expiryMatch=(a,b)=>{
+      const x=expiryComparable(a),y=expiryComparable(b);
+      return x===y||((x.length===7||y.length===7)&&x.slice(0,7)===y.slice(0,7));
+    };
+    const askedLot=txt(scanned.lote),askedCad=txt(scanned.caducidad),askedBar=txt(scanned.barcode);
+    const candidates=(lots||[]).filter(r=>available(r)>0)
+      .filter(r=>!askedLot||normalized(r.lote)===normalized(askedLot))
+      .filter(r=>!askedCad||expiryMatch(r.caducidad||r.cad,askedCad))
+      .filter(r=>!askedBar||txt(r.codigo_barras||r.codigoBarras||r.barcode)===askedBar);
+    if(candidates.length!==1){
+      const msg=candidates.length>1?
+        'El código coincide con varios lotes. Escanea el QR de una etiqueta nueva que incluya lote y caducidad; no se elegirá un lote incorrecto.':
+        'No hay un lote con existencia que coincida exactamente con el código, lote y caducidad escaneados.';
+      setStatus(msg,'bad');return{ok:false,message:msg,ambiguous:candidates.length>1};
+    }
+    const row=Object.assign({},candidates[0],{clave:product.clave,descripcion:product.descripcion||candidates[0].descripcion});
+    const rawQty=txt(scanned.pzs),qty=rawQty===''?1:Number(rawQty);
+    if(!Number.isSafeInteger(qty)||qty<1)return{ok:false,message:'Las piezas en el código deben ser un número entero mayor a cero.'};
+    const key=cartKey(row),prior=cart.find(x=>cartKey(x)===key),newQty=(prior?num(prior.pzs):0)+qty;
+    const plan=manualTransferPlan(row,newQty);
+    if(!plan.ok){setStatus(plan.message,'bad');return{ok:false,message:plan.message};}
+    const updates={pzs:newQty,origenDescontar:plan.sourceQty,destinoSumar:plan.destinationQty,directionCode:d.code,cantidadManualSinLimite:false,unidadesPorEmpaqueDetectadas:1};
+    if(prior)Object.assign(prior,updates);
+    else cart.push(Object.assign({},row,updates));
+    renderCart();
+    const msg='✓ '+qty+' pzs agregadas al carrito · '+product.clave+' · Lote '+(row.lote||'—')+' · Cad. '+(row.caducidad||'—')+'.';
+    setStatus(msg,'ok');
+    return{ok:true,message:msg,lote:row.lote,caducidad:row.caducidad,pzs:qty};
+  };
   function renderCart(){
     const d=direction(),cartSearch=$('transferCartQ');
     if(!cart.length&&cartSearch)cartSearch.value='';
