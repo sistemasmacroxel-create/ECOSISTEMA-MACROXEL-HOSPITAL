@@ -950,6 +950,7 @@ body.mx-auth-blue-flash-v167::after{content:"";position:fixed;inset:0;z-index:21
 <button class="viewer-tab" id="tabPatients" title="Consulta de pacientes" type="button"><span class="mx-menu-icon" aria-hidden="true">👤</span><span class="mx-menu-label">Pacientes</span></button>
 <button class="viewer-tab" id="tabInventory" type="button">Existencias</button>
 <button class="viewer-tab" id="tabTransfer" title="Transferencias" type="button"><span class="mx-menu-icon" aria-hidden="true">🔁</span><span class="mx-menu-label">Transferencias</span></button>
+<button class="viewer-tab" id="tabEtiquetas" title="Preparar etiquetas de almacén" type="button"><span class="mx-menu-icon" aria-hidden="true">🏷️</span><span class="mx-menu-label">Etiquetas</span></button>
 <button class="viewer-tab" id="tabSurtidoCollective" title="Surtir colectivos" type="button"><span class="mx-menu-icon" aria-hidden="true">📝</span><span class="mx-menu-label">Surtir colectivo</span></button>
 <button class="viewer-tab" id="tabRecipeSupply" title="Surtido de recetas" type="button"><span class="mx-menu-icon" aria-hidden="true">🩺</span><span class="mx-menu-label">Surtido recetas</span></button>
 <button class="viewer-tab" id="tabTransferAdjust" title="Ajustar inventario" type="button"><span class="mx-menu-icon" aria-hidden="true">⚙️</span><span class="mx-menu-label">Ajustar inventario</span></button>
@@ -1038,6 +1039,10 @@ body.mx-auth-blue-flash-v167::after{content:"";position:fixed;inset:0;z-index:21
 </div>
 </div>
 </section>
+<section class="mx-hidden" id="etiquetasView" aria-label="Generador de etiquetas CPM">
+<div class="card" style="padding:0;overflow:hidden;border-radius:14px">
+<iframe id="mxEtiquetasFrame" title="Macroxel: Generador de etiquetas CPM" src="etiquetas.html" loading="lazy" style="width:100%;height:calc(100dvh - 155px);min-height:750px;border:0;display:block;background:#f2f6f7" allow="clipboard-write"></iframe>
+</div></section>
 <section class="mx-hidden" id="transferView">
 <div class="card transfer-card">
 <h3 id="transferDirectionTitle" style="margin:0 0 7px">🔁 Transferencia de Almacén a Estantes</h3>
@@ -1061,6 +1066,7 @@ body.mx-auth-blue-flash-v167::after{content:"";position:fixed;inset:0;z-index:21
 <div class="transfer-search-input-row">
 <input autocapitalize="off" autocomplete="off" enterkeyhint="search" id="transferQ" inputmode="numeric" pattern="[0-9.]*" placeholder="Escribe clave, nombre o lote..." spellcheck="false" type="text"/>
 <button aria-label="Cambiar teclado" class="transfer-keyboard-toggle" id="transferKeyboardToggle" title="Cambiar entre teclado numérico y letras" type="button">ABC</button>
+<button id="mxTransferScanner" type="button" aria-label="Abrir cámara y escanear código de barras o QR" title="Escanear código de barras o QR con cámara">📷 Escanear</button>
 </div>
 </div>
 </div>
@@ -4944,6 +4950,7 @@ if(window.__mxTransferNativeNavigationV111)return;window.__mxTransferNativeNavig
 const MAP={
  patients:{tab:'tabPatients',view:'patientsView',label:'Pacientes'},inventory:{tab:'tabInventory',view:'inventoryView',label:'Existencias'},
  transfer:{tab:'tabTransfer',view:'transferView',label:'🔁 Transferencias'},
+ labels:{tab:'tabEtiquetas',view:'etiquetasView',label:'🏷️ Etiquetas'},
  surtido:{tab:'tabSurtidoCollective',view:'surtidoCollectiveView',label:'📝 Surtir colectivo',init:'__mxInitNativeSurtido',resume:'mxSurtidoResumeSync'},
  recipes:{tab:'tabRecipeSupply',view:'recipeSupplyView',label:'🩺 Surtido recetas',init:'__mxInitNativeRecipes',resume:'mxRecipesResumeSync'},
  adjust:{tab:'tabTransferAdjust',view:'transferAdjustView',label:'⚙️ Ajustar inventario'},
@@ -4952,9 +4959,9 @@ const MAP={
  authorizations:{tab:'tabViewerAuth',view:'viewerAuthView',label:'🔐 Autorizar visores',init:'__mxInitControlCentralViewerAuth',resume:'mxControlCentralViewerAuthResume'},
  pharmacy:{tab:'tabPharmacyOrders',view:'pharmacyOrdersView',label:'📋 Pedido farmacia'},history:{tab:'tabTransferHistory',view:'transferHistoryView',label:'🧾 Historial'}
 };
-const VISIBLE=['patients','transfer','surtido','recipes','adjust','analysis','antibiotics','pharmacy','history','authorizations'];
-const H2M={pacientes:'patients',paciente:'patients',transferencias:'transfer',transfer:'transfer',surtido:'surtido',surtir:'surtido',recetas:'recipes',receta:'recipes','surtido-recetas':'recipes',inventario:'adjust',inven:'adjust',analisis:'analysis','análisis':'analysis',antibioticos:'antibiotics','antibióticos':'antibiotics',pedido:'pharmacy',pedidos:'pharmacy',historial:'history','autorizar-visores':'authorizations',autorizar:'authorizations',activaciones:'authorizations'};
-const M2H={patients:'pacientes',transfer:'transferencias',surtido:'surtido',recipes:'recetas',adjust:'inventario',analysis:'analisis',antibiotics:'antibioticos',pharmacy:'pedido',history:'historial',authorizations:'autorizar-visores'};
+const VISIBLE=['patients','transfer','labels','surtido','recipes','adjust','analysis','antibiotics','pharmacy','history','authorizations'];
+const H2M={pacientes:'patients',paciente:'patients',transferencias:'transfer',transfer:'transfer',etiquetas:'labels',etiqueta:'labels',surtido:'surtido',surtir:'surtido',recetas:'recipes',receta:'recipes','surtido-recetas':'recipes',inventario:'adjust',inven:'adjust',analisis:'analysis','análisis':'analysis',antibioticos:'antibiotics','antibióticos':'antibiotics',pedido:'pharmacy',pedidos:'pharmacy',historial:'history','autorizar-visores':'authorizations',autorizar:'authorizations',activaciones:'authorizations'};
+const M2H={patients:'pacientes',transfer:'transferencias',labels:'etiquetas',surtido:'surtido',recipes:'recetas',adjust:'inventario',analysis:'analisis',antibiotics:'antibioticos',pharmacy:'pedido',history:'historial',authorizations:'autorizar-visores'};
 let active='',ready=false,applying=false;const legacy={},nativeReady=new Set(),nativeRetry=new Map();
 const $=id=>document.getElementById(id),valid=k=>!!MAP[k]&&VISIBLE.includes(k);
 function hashModule(){return H2M[decodeURIComponent(String(location.hash||'').replace(/^#/,'')).trim().toLowerCase()]||''}
@@ -5408,5 +5415,6 @@ setInterval(applyAll,1200);setTimeout(applyAll,0);
 
 
 
+<script src="mx-transfer-scanner.js" defer></script>
 </body>
 </html>
