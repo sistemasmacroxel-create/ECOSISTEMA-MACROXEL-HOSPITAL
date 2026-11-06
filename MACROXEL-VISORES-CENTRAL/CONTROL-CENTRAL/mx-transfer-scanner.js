@@ -223,7 +223,46 @@
     }
     return false;
   }
-  async function start(){
+  function askTransferDirection(){
+    buildUI();
+    let choice=$('mxScanDirectionOverlay');
+    if(!choice){
+      choice=document.createElement('div');
+      choice.id='mxScanDirectionOverlay';
+      choice.style.cssText='position:fixed;inset:0;z-index:2147483200;background:rgba(2,16,30,.88);display:flex;align-items:center;justify-content:center;padding:16px';
+      choice.innerHTML='<div role="dialog" aria-modal="true" aria-labelledby="mxScanDirectionTitle" style="background:white;color:#143543;width:min(450px,100%);border-radius:16px;padding:22px;box-shadow:0 18px 65px #00182b">'+
+        '<h3 id="mxScanDirectionTitle" style="margin:0 0 12px;font-size:20px">Sentido de transferencia</h3>'+
+        '<p style="margin:0 0 18px">Antes de activar el escáner, selecciona hacia dónde moverás los productos.</p>'+
+        '<button type="button" data-mx-scan-dir="almacen" style="display:block;width:100%;padding:15px;margin:0 0 12px;background:#07596a;color:white;border:0;border-radius:10px;font-weight:800;font-size:16px">Almacén → Estantes</button>'+
+        '<button type="button" data-mx-scan-dir="estantes" style="display:block;width:100%;padding:15px;margin:0 0 12px;background:#07596a;color:white;border:0;border-radius:10px;font-weight:800;font-size:16px">Estantes → Almacén</button>'+
+        '<button type="button" data-mx-scan-cancel style="display:block;width:100%;padding:12px;border:1px solid #ccd6dc;background:#f3f6f8;border-radius:10px">Cancelar</button></div>';
+      document.body.appendChild(choice);
+      choice.querySelector('[data-mx-scan-cancel]').addEventListener('click',()=>choice.remove());
+      choice.addEventListener('click',e=>{if(e.target===choice)choice.remove();});
+      choice.querySelectorAll('[data-mx-scan-dir]').forEach(btn=>btn.addEventListener('click',()=>{
+        const direction=$('transferDirection');
+        const wanted=btn.dataset.mxScanDir;
+        if(!direction){alert('No se encontró el selector de sentido de transferencia. Actualiza el visor.');return;}
+        const normalize=value=>String(value||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase();
+        const options=[...direction.options];
+        const desired= wanted==='almacen'?['almacen','estantes']:['estantes','almacen'];
+        const match=options.find(o=>{
+          const label=normalize(o.textContent);
+          return label.includes(desired[0])&&label.includes(desired[1])&&label.indexOf(desired[0])<label.indexOf(desired[1]);
+        });
+        if(!match){alert('No se pudo identificar la dirección solicitada en Transferencias.');return;}
+        direction.value=match.value;
+        direction.dispatchEvent(new Event('input',{bubbles:true}));
+        direction.dispatchEvent(new Event('change',{bubbles:true}));
+        choice.remove();
+        if(!requireTransferDirection())return;
+        void startCameraFlow();
+      }));
+    }
+    choice.style.display='flex';
+    choice.querySelector('[data-mx-scan-dir]')?.focus();
+  }
+  async function startCameraFlow(){
     if(!requireTransferDirection())return;
     buildUI();stop();overlay.classList.add('mx-open');active=true;
     const myCycle=cycle;
@@ -246,7 +285,7 @@
   }
     function boot(){
     const b=$('mxTransferScanner');if(!b)return;
-    b.addEventListener('click',e=>{e.preventDefault();start();});
+    b.addEventListener('click',e=>{e.preventDefault();askTransferDirection();});
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
