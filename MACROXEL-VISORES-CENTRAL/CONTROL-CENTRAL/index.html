@@ -1041,7 +1041,7 @@ body.mx-auth-blue-flash-v167::after{content:"";position:fixed;inset:0;z-index:21
 </section>
 <section class="mx-hidden" id="etiquetasView" aria-label="Generador de etiquetas CPM">
 <div class="card" style="padding:0;overflow:hidden;border-radius:14px">
-<iframe id="mxEtiquetasFrame" title="Macroxel: Generador de etiquetas CPM" src="etiquetas.html?v=20261105i-conteoalmacen" loading="lazy" style="width:100%;height:calc(100dvh - 155px);min-height:750px;border:0;display:block;background:#f2f6f7" allow="clipboard-write"></iframe>
+<iframe id="mxEtiquetasFrame" title="Macroxel: Generador de etiquetas CPM" src="etiquetas.html?v=20261105j-envioopcional" loading="lazy" style="width:100%;height:calc(100dvh - 155px);min-height:750px;border:0;display:block;background:#f2f6f7" allow="clipboard-write"></iframe>
 </div></section>
 <section class="mx-hidden" id="transferView">
 <div class="card transfer-card">
@@ -3840,12 +3840,15 @@ window.mxInventoryCountStageFromLabels=async function(labels){
  '<p style="margin:9px 0"><b>'+zeros.length+' lotes</b> de Almacén no aparecen en las etiquetas (suman <b>'+zeroQty+'</b> piezas existentes).</p>'+
  '<p style="margin:10px 0;color:#9c4c13"><b>Verifica las piezas:</b> algunas etiquetas anteriores pudieron tomar Almacén + Estantes como cantidad sugerida. Las copias para impresión nunca cuentan como piezas.</p>'+
  '<div style="overflow:auto;max-height:220px;border:1px solid #e4edef;border-radius:10px"><table style="width:100%;font-size:12px;border-collapse:collapse"><thead><tr><th>Clave</th><th>Lote</th><th>Caducidad</th><th>Almacén sistema</th><th>Físico</th></tr></thead><tbody>'+sample+'</tbody></table></div>'+
- '<label style="display:block;margin:14px 0;padding:12px;background:#fff5e7;border-radius:10px"><input type="checkbox" id="mxLblInvZero" checked> <b>Poner en CERO los '+zeros.length+' lotes de Almacén no registrados en las etiquetas</b><small style="display:block;margin-top:7px">Esta opción no modifica Estantes. Solo prepara las diferencias para validación en el Sistema Principal.</small></label>'+
- '<label style="display:block;margin-bottom:14px">Para confirmar la puesta en cero, escribe <b>ALMACEN</b>:<input id="mxLblInvConfirm" autocomplete="off" style="display:block;padding:10px;margin-top:5px;border:1px solid #9caeb8;border-radius:8px;width:100%" placeholder="ALMACEN"></label>'+
+ '<label style="display:block;margin:14px 0;padding:12px;background:#fff5e7;border-radius:10px"><input type="checkbox" id="mxLblInvZero"> <b>Poner en CERO los '+zeros.length+' lotes de Almacén no registrados en las etiquetas</b><small style="display:block;margin-top:7px">Esta opción es SOLO para un inventario físico COMPLETO. Si preparaste unas cuantas etiquetas, deja esta casilla SIN marcar: todos los demás lotes conservarán sus existencias. Estantes no se modifica.</small></label>'+
+ '<label id="mxLblInvConfirmBox" style="display:none;margin-bottom:14px">Solo si vas a poner en cero los no registrados, escribe <b>ALMACEN</b>:<input id="mxLblInvConfirm" autocomplete="off" style="display:block;padding:10px;margin-top:5px;border:1px solid #9caeb8;border-radius:8px;width:100%" placeholder="ALMACEN"></label>'+
  (currentProgress?'<p style="color:#a43b30">Advertencia: este conteo de Almacén ya tiene '+currentProgress+' registros en progreso; al continuar se reemplazarán los registros locales de esa sesión (nunca Estantes).</p>':'')+
  '<p style="font-size:12px;color:#506a77">Esta acción NO modifica todavía las existencias: crea el conteo para revisar y finalizar. La aplicación real requiere validación autorizada en el Sistema Principal.</p>'+
  '<div style="display:flex;flex-wrap:wrap;justify-content:flex-end;gap:9px;margin-top:14px"><button id="mxLblInvBack" type="button" style="padding:12px;border:1px solid #9fadb4;border-radius:9px;background:white">Volver sin cambiar</button><button id="mxLblInvStage" type="button" style="padding:12px;border:0;border-radius:9px;background:#075c6a;color:white;font-weight:800">Preparar ajuste de Almacén</button></div></div>';
  document.body.appendChild(modal);
+ $('mxLblInvZero').addEventListener('change',()=>{
+   $('mxLblInvConfirmBox').style.display=$('mxLblInvZero').checked?'block':'none';
+ });
  const close=()=>{modal.remove()};
  $('mxLblInvBack').onclick=close;
  $('mxLblInvStage').onclick=()=>{
