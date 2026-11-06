@@ -3779,7 +3779,15 @@ function mxLabelFindStockRow(label){
  if(!digits)return{error:'Etiqueta sin clave CPM'};
  const matchesByCode=state.rows.filter(r=>{
   const code=mxLabelDigits(r.clave);
-  return code&&(code===digits||(digits.length>=6&&code.endsWith(digits)));
+  if(!code)return false;
+  if(code===digits)return true;
+  // El catálogo de Etiquetas utiliza CPM completo (ej. 010.000.0570.00);
+  // el inventario principal puede guardar la clave corta (0570.00).
+  // Conciliar últimos 6 dígitos solo cuando UNO de los dos formatos es corto.
+  if(code.length>=6&&digits.length>=6&&(code.length===6||digits.length===6)){
+    return code.slice(-6)===digits.slice(-6);
+  }
+  return false;
  });
  const withLot=matchesByCode.filter(r=>norm(r.lote)===norm(label.lote));
  const lExp=mxLabelExpiry(label.caducidad);
@@ -3793,6 +3801,23 @@ function mxLabelFindStockRow(label){
  const reason=candidates.length>1?'Hay más de un registro con la misma clave, lote y caducidad':'No existe una coincidencia exacta en el inventario principal';
  return{error:reason};
 }
+// Canal verificado para Etiquetas en iframe de otro origen (GitHub Pages).
+window.addEventListener('message',async event=>{
+ const data=event?.data;
+ if(!data||data.channel!=='MACROXEL_LABELS_WAREHOUSE_V1'||data.type!=='stage')return;
+ const frame=$('mxEtiquetasFrame');
+ if(!frame?.contentWindow||event.source!==frame.contentWindow)return;
+ const expectedOrigin=(()=>{try{return new URL(frame.getAttribute('src'),document.baseURI).origin}catch(_e){return''}})();
+ if(!expectedOrigin||event.origin!==expectedOrigin)return;
+ const requestId=txt(data.requestId);
+ if(!/^mx_labels_[0-9]+_[a-z0-9]+$/.test(requestId))return;
+ const reply=(type,message)=>{try{event.source.postMessage({channel:'MACROXEL_LABELS_WAREHOUSE_V1',type,requestId,message},event.origin)}catch(_e){}};
+ if(!Array.isArray(data.items)||data.items.length<1||data.items.length>500){
+  reply('error','La lista de etiquetas está vacía o excede el máximo de 500.');return;
+ }
+ try{await window.mxInventoryCountStageFromLabels(data.items);reply('accepted','Revisa el conteo preparado de Almacén.')}
+ catch(error){reply('error',txt(error?.message||error)||'No se pudo preparar el conteo.')}
+});
 window.mxInventoryCountStageFromLabels=async function(labels){
  if(!Array.isArray(labels)||labels.length<1)throw new Error('No hay etiquetas preparadas.');
  if(labels.length>500)throw new Error('El máximo de registros por importación es 500.');
@@ -3875,6 +3900,8 @@ window.mxInventoryCountStageFromLabels=async function(labels){
   for(const item of staged)store(item.row,item.physical,true);
   if(withZero)for(const r of zeros)store(r,0,false);
   saveSession();state.revision++;state.filterToken='';state.rowStatusFilter='all';state.page=1;
+  // Mostrar primero los lotes importados (incluidos ceros), no los pendientes sin contar.
+  state.rowStatusFilter='green';state.page=1;state.filterToken='';
   render();close();scrollAdjustListIntoView(80);
   status('✅ Conteo de Almacén preparado desde '+staged.length+' lotes de Etiquetas. '+(withZero?zeros.length+' lotes no encontrados quedaron propuestos en cero.':'Los no encontrados conservarán sus existencias.')+' Estantes no se modificará. Revisa y presiona Finalizar para enviar al Principal.','ok');
  };
