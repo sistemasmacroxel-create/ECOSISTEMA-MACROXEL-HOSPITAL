@@ -137,10 +137,13 @@ function init(){
    if($('mxInventarioQrLaunch'))return;
    const candidates=[...document.querySelectorAll('button,h1,h2,h3,label,span,strong')].filter(e=>/inventario\s+almac[eé]n/i.test(e.textContent||'')&&e.children.length===0);
    const anchor=candidates.find(e=>e.offsetParent!==null)||candidates[0];
-   if(!anchor)return;
+   const adjustView=$('transferAdjustView');
+   if(!anchor&&!adjustView)return;
    const b=document.createElement('button');b.id='mxInventarioQrLaunch';b.type='button';b.textContent='📷 Inventario escáner QR';
    b.style.cssText='padding:10px 15px;margin:8px;background:#075b70;color:white;border:0;border-radius:9px;font-weight:800;cursor:pointer';
-   b.onclick=e=>{e.preventDefault();open();};anchor.insertAdjacentElement('afterend',b);
+   b.onclick=e=>{e.preventDefault();open();};
+   if(anchor)anchor.insertAdjacentElement('afterend',b);
+   else adjustView.insertAdjacentElement('afterbegin',b);
  });observer.observe(document.body,{childList:true,subtree:true});
  window.mxOpenInventarioQrAlmacen=open;
 }
