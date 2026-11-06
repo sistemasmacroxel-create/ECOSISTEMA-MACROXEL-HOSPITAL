@@ -870,10 +870,10 @@ window.CPM_CATALOG = [{"id":"0022.00","full":"010.000.0022.00","name":"CASEINATO
       if(!Number.isSafeInteger(total)||total>999999)
         {notify('El total de piezas de un lote supera el máximo permitido (999999).',true);return;}
       if(current){current.piezas=total;current.cajas++;}
-      else grouped.set(key,{clave,lote,caducidad,piezas:total,cajas:1,copias:1});
+      else grouped.set(key,{clave,descripcion:String(l.desc||BY_ID.get(l.id)?.name||l.id),lote,caducidad,piezas:total,cajas:1,copias:1});
     }
     const items=Array.from(grouped.values(),l=>({
-      clave:l.clave,lote:l.lote,caducidad:l.caducidad,
+      clave:l.clave,descripcion:l.descripcion,lote:l.lote,caducidad:l.caducidad,
       piezas:String(l.piezas),copias:1
     }));
     const btn=$('mxLabelsSendWarehouse');btn.disabled=true;
