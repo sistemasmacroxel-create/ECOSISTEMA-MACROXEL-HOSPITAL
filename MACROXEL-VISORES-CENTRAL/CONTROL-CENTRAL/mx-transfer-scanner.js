@@ -287,5 +287,13 @@
     const b=$('mxTransferScanner');if(!b)return;
     b.addEventListener('click',e=>{e.preventDefault();askTransferDirection();});
   }
+  // Extensión Inventario QR para Ajustar inventario → Almacén.
+  if(!document.querySelector('script[data-mx-inventario-qr]')){
+    const extra=document.createElement('script');
+    extra.dataset.mxInventarioQr='1';
+    extra.src=new URL('mx-inventario-qr.js?v=20261105a',document.baseURI).href;
+    extra.onerror=()=>console.warn('Macroxel: no pudo cargar el modulo Inventario QR.');
+    document.head.appendChild(extra);
+  }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
