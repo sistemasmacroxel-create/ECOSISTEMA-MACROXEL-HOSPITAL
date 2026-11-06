@@ -858,16 +858,37 @@ window.CPM_CATALOG = [{"id":"0022.00","full":"010.000.0022.00","name":"CASEINATO
       piezas:String(l.units??''),
       copias:l.copies
     }));
-    let host;
-    try{host=window.parent!==window?window.parent:window}catch(_e){host=window}
-    if(typeof host.mxInventoryCountStageFromLabels!=='function'){
-      notify('Abre Etiquetas desde el Visor Control Central actualizado para enviar el conteo a Almacén.',true);
-      return;
-    }
     const btn=$('mxLabelsSendWarehouse');btn.disabled=true;
-    try{await host.mxInventoryCountStageFromLabels(items)}
-    catch(e){notify('No se pudo preparar el inventario: '+(e?.message||e),true)}
-    finally{btn.disabled=false}
+    try{
+      if(window.parent===window)throw new Error('Abre Etiquetas desde Control Central para transferir el conteo.');
+      let sameOriginFn=null;
+      // Acceso directo sólo si ambos documentos tienen realmente el mismo origen.
+      try{if(typeof window.parent.mxInventoryCountStageFromLabels==='function')sameOriginFn=window.parent.mxInventoryCountStageFromLabels}catch(_e){}
+      if(sameOriginFn){await sameOriginFn(items)}
+      else {
+        // Los visores de acceso y el ecosistema se publican en dominios GitHub Pages diferentes.
+        // postMessage permite comunicar el iframe sin violar el aislamiento entre orígenes.
+        const requestId='mx_labels_'+Date.now()+'_'+Math.random().toString(36).slice(2);
+        const referrerOrigin=(()=>{try{return new URL(document.referrer).origin}catch(_e){return''}})();
+        await new Promise((resolve,reject)=>{
+          let settled=false;
+          const finish=(err)=>{if(settled)return;settled=true;clearTimeout(timer);window.removeEventListener('message',onMessage);err?reject(err):resolve()};
+          const onMessage=(ev)=>{
+            if(ev.source!==window.parent||!ev.data||ev.data.channel!=='MACROXEL_LABELS_WAREHOUSE_V1'||ev.data.requestId!==requestId)return;
+            if(referrerOrigin&&ev.origin!==referrerOrigin)return;
+            if(ev.data.type==='accepted')finish();
+            else if(ev.data.type==='error')finish(new Error(String(ev.data.message||'El Control Central rechazó el conteo.')));
+          };
+          const timer=setTimeout(()=>finish(new Error('Control Central no confirmó la recepción. Abre el visor actualizado y vuelve a intentar.')),45000);
+          window.addEventListener('message',onMessage);
+          window.parent.postMessage({channel:'MACROXEL_LABELS_WAREHOUSE_V1',type:'stage',requestId,items},referrerOrigin||'*');
+        });
+      }
+      notify('Conteo enviado al módulo Almacén. Revisa y confirma la preparación de cantidades.',false);
+    }catch(e){
+      const message='No se pudo enviar al conteo: '+(e?.message||e);
+      notify(message,true);setFormMessage(message);
+    }finally{btn.disabled=!queue.length}
   });
   elements.queue.addEventListener('click',ev=> {
     const button=ev.target.closest('[data-act]');if(!button)return;
