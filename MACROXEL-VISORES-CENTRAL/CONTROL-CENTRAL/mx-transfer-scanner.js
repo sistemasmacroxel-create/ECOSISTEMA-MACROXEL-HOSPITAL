@@ -295,5 +295,34 @@
     extra.onerror=()=>console.warn('Macroxel: no pudo cargar el modulo Inventario QR.');
     document.head.appendChild(extra);
   }
+  // Instalar mejoras de flujo en el iframe Etiquetas (mismo origen que Control Central).
+  function installLabelsFlow(){
+    const frame=document.getElementById('mxEtiquetasFrame');
+    if(!frame)return false;
+    const attach=()=>{
+      try{
+        const doc=frame.contentDocument;
+        if(!doc||!doc.documentElement||doc.querySelector('[data-mx-labels-flow]'))return;
+        const script=doc.createElement('script');
+        script.dataset.mxLabelsFlow='1';
+        script.src=new URL('mx-etiquetas-flujo.js?v=20261105a',document.baseURI).href;
+        (doc.head||doc.documentElement).appendChild(script);
+      }catch(e){console.warn('No fue posible instalar flujo de etiquetas:',e);}
+    };
+    frame.addEventListener('load',attach);
+    if(frame.contentDocument?.readyState==='complete')attach();
+    return true;
+  }
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',()=>{
+      if(!installLabelsFlow()){
+        const obs=new MutationObserver(()=>{if(installLabelsFlow())obs.disconnect();});
+        obs.observe(document.documentElement,{childList:true,subtree:true});
+      }
+    },{once:true});
+  }else if(!installLabelsFlow()){
+    const obs=new MutationObserver(()=>{if(installLabelsFlow())obs.disconnect();});
+    obs.observe(document.documentElement,{childList:true,subtree:true});
+  }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
