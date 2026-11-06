@@ -243,15 +243,14 @@
         const direction=$('transferDirection');
         const wanted=btn.dataset.mxScanDir;
         if(!direction){alert('No se encontró el selector de sentido de transferencia. Actualiza el visor.');return;}
-        const normalize=value=>String(value||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase();
-        const options=[...direction.options];
-        const desired= wanted==='almacen'?['almacen','estantes']:['estantes','almacen'];
-        const match=options.find(o=>{
-          const label=normalize(o.textContent);
-          return label.includes(desired[0])&&label.includes(desired[1])&&label.indexOf(desired[0])<label.indexOf(desired[1]);
-        });
-        if(!match){alert('No se pudo identificar la dirección solicitada en Transferencias.');return;}
-        direction.value=match.value;
+        // Valores reales del selector del visor hospitalario: A2E y E2A.
+        const requiredValue=wanted==='almacen'?'A2E':'E2A';
+        const available=[...direction.options].some(option=>option.value===requiredValue);
+        if(!available){
+          alert('El selector de Transferencias no contiene el sentido '+requiredValue+'. Actualiza el visor.');
+          return;
+        }
+        direction.value=requiredValue;
         direction.dispatchEvent(new Event('input',{bubbles:true}));
         direction.dispatchEvent(new Event('change',{bubbles:true}));
         choice.remove();
