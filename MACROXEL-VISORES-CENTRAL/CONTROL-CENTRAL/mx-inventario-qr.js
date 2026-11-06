@@ -9,7 +9,26 @@ const qty=v=>Math.max(0,Math.floor(Number(v)||0));
 const storage='mx-hps-conteo-qr-almacen-v1';
 let root,scanner=null,scanning=false,processing=false,stock=[],count=new Map(),last='',lastAt=0;
 function toRow(r){return {clave:String(r.clave||r.codigo||''),lote:String(r.lote||r.lot||''),caducidad:String(r.caducidad||r.fecha_caducidad||''),existencia:qty(r.existencia??r.piezas??r.cantidad??r.stock??r.disponible),descripcion:String(r.descripcion||r.nombre||r.producto||'')};}
-function ident(r){return key(r.clave)+'|'+key(r.lote)+'|'+key(r.caducidad);}
+// Identificador compuesto: cada lote y caducidad se contabilizan por separado.
+function ident(r){return JSON.stringify([key(r.clave),key(r.lote),key(r.caducidad)]);}
+function flash(){
+ const layer=$('mxInvQrFlash');if(!layer)return;
+ layer.classList.remove('mx-inv-flash-on');
+ void layer.offsetWidth;
+ layer.classList.add('mx-inv-flash-on');
+}
+async function cancelInventory(){
+ if(!window.confirm('¿Cancelar este inventario QR? Se borrarán todos los productos escaneados en este conteo. El inventario del sistema principal NO se modificará.'))return;
+ await stop();
+ count.clear();stock=[];last='';lastAt=0;processing=false;
+ try{localStorage.removeItem(storage);}catch(_){}
+ const input=$('mxInvQrManual');if(input)input.value='';
+ $('mxInvQrCamera').textContent='📷 Activar cámara';
+ closeFinal();
+ table();
+ notify('Inventario QR cancelado. No se modificaron existencias.');
+ root.hidden=true;
+}
 function decode(raw){
   const v=String(raw||'').trim();if(!v.startsWith('MXCPM1|'))throw Error('Usa el QR de las etiquetas Macroxel (MXCPM1).');
   const p=v.split('|');if(p.length!==5)throw Error('QR incompleto.');
@@ -41,11 +60,13 @@ async function register(raw){
  try{
  const d=decode(raw);
  const matches=stock.filter(r=>key(r.clave)===key(d.clave)&&key(r.lote)===key(d.lote)&&(!d.caducidad||key(r.caducidad)===key(d.caducidad)));
- if(matches.length>1)throw Error('Hay lotes duplicados; verifica la caducidad del QR.');
+ if(matches.length>1)throw Error('Hay varios registros para la misma clave y lote. Verifica la caducidad del QR antes de sumar.');
+ if(!d.lote)throw Error('El QR no indica lote. No se permite mezclar productos sin lote.');
  const row=matches[0]||{clave:d.clave,lote:d.lote,caducidad:d.caducidad,existencia:0,descripcion:'No encontrado en inventario'};
+ // Si el lote existe, usar su identificador exacto. Claves iguales nunca mezclan lotes distintos.
  const id=ident(row),prev=count.get(id);
  count.set(id,{...row,contado:(prev?.contado||0)+d.pzs});
- save();table();notify('✓ '+d.clave+' · '+d.lote+' · +'+d.pzs+' piezas');try{navigator.vibrate?.(80);}catch{}
+ save();table();flash();notify('✓ '+d.clave+' · '+d.lote+' · +'+d.pzs+' piezas');try{navigator.vibrate?.(80);}catch{}
  }catch(e){notify(e.message||String(e));}finally{processing=false;}
 }
 async function stop(){scanning=false;const s=scanner;scanner=null;if(!s)return;try{if(s.isScanning)await s.stop();}catch{}try{await s.clear();}catch{}}
@@ -88,12 +109,13 @@ function open(){
  loadStock().then(()=>{table();notify('Inventario de Almacén cargado. Escanea las etiquetas QR.');}).catch(e=>notify(e.message));
 }
 function init(){
- const style=document.createElement('style');style.textContent='#mxInvQrOverlay[hidden],#mxInvQrFinal[hidden]{display:none!important}#mxInvQrOverlay{position:fixed;inset:0;z-index:2147483000;background:#102b38eb;padding:14px;overflow:auto}#mxInvQrPanel{background:#fff;color:#173846;border-radius:15px;max-width:700px;margin:auto;padding:18px}#mxInvQrPanel button{padding:10px 14px;border-radius:8px;border:0;background:#0c5363;color:white;font-weight:700;cursor:pointer;margin:3px}#mxInvQrRows td,#mxInvQrPanel th{border-bottom:1px solid #dbe5e8;padding:6px;text-align:left}#mxInvQrFinal{border:2px solid #ad6a19;padding:15px;background:#fff9e8;border-radius:12px;margin-top:12px}#mxInvQrReader{max-width:430px;margin:auto}';document.head.appendChild(style);
+ const style=document.createElement('style');style.textContent='#mxInvQrFlash{position:fixed;inset:0;z-index:2147483600;background:rgba(41,220,125,.55);opacity:0;pointer-events:none}#mxInvQrFlash.mx-inv-flash-on{animation:mxInvQrFlash .45s ease-out forwards}@keyframes mxInvQrFlash{0%{opacity:0}20%{opacity:1}100%{opacity:0}}#mxInvQrCancelInventory{background:#ad3333!important}'+'#mxInvQrOverlay[hidden],#mxInvQrFinal[hidden]{display:none!important}#mxInvQrOverlay{position:fixed;inset:0;z-index:2147483000;background:#102b38eb;padding:14px;overflow:auto}#mxInvQrPanel{background:#fff;color:#173846;border-radius:15px;max-width:700px;margin:auto;padding:18px}#mxInvQrPanel button{padding:10px 14px;border-radius:8px;border:0;background:#0c5363;color:white;font-weight:700;cursor:pointer;margin:3px}#mxInvQrRows td,#mxInvQrPanel th{border-bottom:1px solid #dbe5e8;padding:6px;text-align:left}#mxInvQrFinal{border:2px solid #ad6a19;padding:15px;background:#fff9e8;border-radius:12px;margin-top:12px}#mxInvQrReader{max-width:430px;margin:auto}';document.head.appendChild(style);
  root=document.createElement('div');root.id='mxInvQrOverlay';root.hidden=true;
- root.innerHTML='<div id="mxInvQrPanel"><h2>📦 Inventario QR · Almacén</h2><p>Conteo independiente. Nada se elimina automáticamente.</p><button id="mxInvQrCamera">📷 Activar cámara</button><button id="mxInvQrClose">Cerrar</button><div id="mxInvQrReader"></div><p><input id="mxInvQrManual" placeholder="Pega QR MXCPM1|..." style="width:75%;padding:10px"><button id="mxInvQrAdd">Agregar</button></p><p id="mxInvQrStatus" role="status"></p><strong id="mxInvQrSummary"></strong><div style="max-height:35vh;overflow:auto"><table style="width:100%;border-collapse:collapse"><thead><tr><th>Clave</th><th>Lote</th><th>Caducidad</th><th>Contadas</th></tr></thead><tbody id="mxInvQrRows"></tbody></table></div><p id="mxInvQrMissing"></p><button id="mxInvQrFinish">Finalizar conteo</button><div id="mxInvQrFinal" hidden><h3>Productos no escaneados</h3><p id="mxInvQrFinalSummary"></p><button id="mxInvQrKeep">Conservar no encontrados</button><button id="mxInvQrDelete">Preparar baja de no encontrados</button><button id="mxInvQrCancel">Volver</button><p>Por seguridad se exportará una propuesta para revisión: no elimina todavía inventario real.</p></div></div>';
+ root.innerHTML='<div id="mxInvQrFlash" aria-hidden="true"></div><div id="mxInvQrPanel"><h2>📦 Inventario QR · Almacén</h2><p>Conteo independiente. Nada se elimina automáticamente.</p><button id="mxInvQrCamera">📷 Activar cámara</button><button id="mxInvQrClose">Cerrar</button><button id="mxInvQrCancelInventory" type="button">Cancelar inventario</button><div id="mxInvQrReader"></div><p><input id="mxInvQrManual" placeholder="Pega QR MXCPM1|..." style="width:75%;padding:10px"><button id="mxInvQrAdd">Agregar</button></p><p id="mxInvQrStatus" role="status"></p><strong id="mxInvQrSummary"></strong><div style="max-height:35vh;overflow:auto"><table style="width:100%;border-collapse:collapse"><thead><tr><th>Clave</th><th>Lote</th><th>Caducidad</th><th>Contadas</th></tr></thead><tbody id="mxInvQrRows"></tbody></table></div><p id="mxInvQrMissing"></p><button id="mxInvQrFinish">Finalizar conteo</button><div id="mxInvQrFinal" hidden><h3>Productos no escaneados</h3><p id="mxInvQrFinalSummary"></p><button id="mxInvQrKeep">Conservar no encontrados</button><button id="mxInvQrDelete">Preparar baja de no encontrados</button><button id="mxInvQrCancel">Volver</button><p>Por seguridad se exportará una propuesta para revisión: no elimina todavía inventario real.</p></div></div>';
  document.body.appendChild(root);restore();
  $('mxInvQrCamera').onclick=()=>void camera();
  $('mxInvQrClose').onclick=()=>{void stop();root.hidden=true;};
+ $('mxInvQrCancelInventory').onclick=()=>void cancelInventory();
  $('mxInvQrAdd').onclick=()=>{void register($('mxInvQrManual').value);$('mxInvQrManual').value='';};
  $('mxInvQrManual').onkeydown=e=>{if(e.key==='Enter')$('mxInvQrAdd').click();};
  $('mxInvQrFinish').onclick=finalize;$('mxInvQrKeep').onclick=()=>end('conservar');$('mxInvQrDelete').onclick=()=>end('eliminar');$('mxInvQrCancel').onclick=closeFinal;
