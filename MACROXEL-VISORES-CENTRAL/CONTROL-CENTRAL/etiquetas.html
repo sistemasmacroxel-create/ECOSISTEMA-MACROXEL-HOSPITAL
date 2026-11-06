@@ -884,7 +884,7 @@ window.CPM_CATALOG = [{"id":"0022.00","full":"010.000.0022.00","name":"CASEINATO
           window.parent.postMessage({channel:'MACROXEL_LABELS_WAREHOUSE_V1',type:'stage',requestId,items},referrerOrigin||'*');
         });
       }
-      notify('Conteo enviado al módulo Almacén. Revisa y confirma la preparación de cantidades.',false);
+      notify('Control Central recibió tus etiquetas. Confirma «Preparar ajuste de Almacén» para que aparezcan las piezas en Conteo físico.',false);
     }catch(e){
       const message='No se pudo enviar al conteo: '+(e?.message||e);
       notify(message,true);setFormMessage(message);
