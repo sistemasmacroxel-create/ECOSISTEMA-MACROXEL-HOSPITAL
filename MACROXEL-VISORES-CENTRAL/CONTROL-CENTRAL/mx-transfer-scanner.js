@@ -139,6 +139,7 @@
       const payload=structured||{clave:resolved?.key||'',barcode:resolved?.barcode||'',pzs:1};
       notice('Código leído. Validando lote y piezas con el inventario...');
       if(!payload.clave)throw new Error('El código leído no corresponde a una clave CPM.');
+      if(!requireTransferDirection())throw new Error('Selecciona el sentido de transferencia antes de agregar productos.');
       if(typeof window.mxTransferScanAdd!=='function')throw new Error('No se cargó el carrito de Transferencias. Actualiza la página.');
       const result=await window.mxTransferScanAdd(payload);
       stop();
@@ -208,7 +209,22 @@
     if(!active||myCycle!==cycle){await releaseCamera();return;}
     notice('Cámara activa ✓ Apunta al código de barras o QR. Centra el código y deja que enfoque.');
   }
+  function requireTransferDirection(){
+    const direction=$('transferDirection');
+    if(direction?.value)return true;
+    const msg='Selecciona primero el sentido de transferencia: Almacén → Estantes o Estantes → Almacén. Después activa el escáner.';
+    const status=$('transferInventoryStatus');
+    if(status)status.textContent=msg;
+    const send=$('transferSendStatus');
+    if(send){send.textContent=msg;send.style.color='#92400e';}
+    if(direction){
+      direction.focus();
+      direction.scrollIntoView({block:'center',behavior:'smooth'});
+    }
+    return false;
+  }
   async function start(){
+    if(!requireTransferDirection())return;
     buildUI();stop();overlay.classList.add('mx-open');active=true;
     const myCycle=cycle;
     notice('Preparando lector de códigos y cámara…');
