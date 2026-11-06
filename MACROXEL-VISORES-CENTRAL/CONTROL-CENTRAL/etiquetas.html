@@ -636,61 +636,45 @@ window.CPM_CATALOG = [{"id":"0022.00","full":"010.000.0022.00","name":"CASEINATO
   }
   function drawPdfLabel(item,baseY) {
     const product=BY_ID.get(item.id);
-    const x=24,w=564,h=366,top=baseY+h;
+    const x=24,w=564,h=242,top=baseY+h;
     let s='';
-    s+=`0.63 0.73 0.77 RG 0.8 w ${x} ${baseY} ${w} ${h} re S\n`;
-    // Encabezado más alto: clave CPM en negritas y tamaño grande.
-    s+=rectCmd(x+1,top-60,w-2,59,'0.94 0.975 0.975');
-    s+=textCmd(x+18,top-30,'MACROXEL  /  CONTROL DE ALMACEN',9.2,true,'0.07 0.34 0.39');
-    const keySize=22;
-    const keyRight=x+w-18;
-    s+=textCmd(keyRight-calcWidth('CLAVE CPM',8.6,true),top-19,'CLAVE CPM',8.6,true,'0.07 0.34 0.39');
-    s+=textCmd(keyRight-calcWidth(product.id,keySize,true),top-45,product.id,keySize,true,'0.06 0.28 0.33');
+    s+='0.63 0.73 0.77 RG 0.8 w '+x+' '+baseY+' '+w+' '+h+' re S\n';
+    s+=rectCmd(x+1,top-38,w-2,37,'0.94 0.975 0.975');
+    s+=textCmd(x+16,top-23,'MACROXEL / CONTROL DE ALMACEN',8.6,true,'0.07 0.34 0.39');
+    const keySize=20,keyRight=x+w-16;
+    s+=textCmd(keyRight-calcWidth('CLAVE CPM',7.3,true),top-11,'CLAVE CPM',7.3,true,'0.07 0.34 0.39');
+    s+=textCmd(keyRight-calcWidth(product.id,keySize,true),top-30,product.id,keySize,true,'0.06 0.28 0.33');
 
-    // Nombre destacado: hasta dos líneas, adaptando solo los nombres muy extensos.
-    let nameSize=19.5;
-    let title=wrapPdf(product.name,w-38,nameSize,true,2);
-    while(title.truncated && nameSize>15.5) {
-      nameSize-=1;
-      title=wrapPdf(product.name,w-38,nameSize,true,2);
+    // Clave CPM y nombre grandes; descripción abreviada en zona izquierda del QR.
+    let nameSize=16.8;
+    let title=wrapPdf(product.name,w-36,nameSize,true,2);
+    while(title.truncated&&nameSize>12.8){nameSize-=0.8;title=wrapPdf(product.name,w-36,nameSize,true,2);}
+    let titleY=top-58;
+    for(const line of title.lines){
+      s+=textCmd(x+16,titleY,line,nameSize,true,'0.09 0.17 0.22');
+      titleY-=nameSize+3;
     }
-    let titleY=top-85;
-    for(const line of title.lines) {
-      s+=textCmd(x+18,titleY,line,nameSize,true,'0.09 0.17 0.22');
-      titleY-=nameSize+5;
+    const descSize=item.desc.length<280?9.3:item.desc.length<550?8.6:8;
+    let descY=titleY-5;
+    const descFloor=baseY+87;
+    const maxDescLines=Math.max(1,Math.floor((descY-descFloor)/(descSize+2.6))+1);
+    const desc=wrapPdf(item.desc,w-157,descSize,false,maxDescLines);
+    for(const ln of desc.lines){
+      if(descY<descFloor)break;
+      s+=textCmd(x+16,descY,ln,descSize,false,'0.21 0.30 0.35');
+      descY-=descSize+2.6;
     }
-
-    // La descripción sigue disponible, pero sin competir con la clave ni el nombre.
-    const descSize=item.desc.length<250?9.4:item.desc.length<550?8.7:8;
-    let descY=titleY-8;
-    const descFloor=baseY+169;
-    const maxDescLines=Math.max(1,Math.floor((descY-descFloor)/(descSize+3))+1);
-    const desc=wrapPdf(item.desc,w-38,descSize,false,maxDescLines);
-    for(const ln of desc.lines) {
-      if(descY < descFloor) break;
-      s+=textCmd(x+18,descY,ln,descSize,false,'0.21 0.30 0.35');
-      descY-=descSize+3;
-    }
-    s+=lineCmd(x+18,baseY+162,x+w-18,baseY+162);
-    const lot=item.lot||'________________';
-    const expiry=item.expiry||'____ / ______';
-    const units=item.units||'_____';
-    s+=textCmd(x+18,baseY+140,'LOTE',11.5,true,'0.22 0.35 0.39');
-    s+=textCmd(x+240,baseY+140,'CADUCIDAD',11.5,true,'0.22 0.35 0.39');
-    s+=textCmd(x+429,baseY+140,'PZS.',11.5,true,'0.22 0.35 0.39');
-    // Los datos aumentan a 18 puntos, con ajuste fino si algún lote es extenso.
-    function fitSpec(value, width) {
-      let size=18;
-      while(size>10 && calcWidth(value,size,true)>width) size-=.5;
-      return size;
-    }
-    s+=textCmd(x+18,baseY+111,lot,fitSpec(lot,205),true,'0.07 0.18 0.22');
-    s+=textCmd(x+240,baseY+111,expiry,fitSpec(expiry,175),true,'0.07 0.18 0.22');
-    s+=textCmd(x+429,baseY+111,units,fitSpec(units,110),true,'0.07 0.18 0.22');
-    s+=lineCmd(x+18,baseY+96,x+w-18,baseY+96);
-    s+=drawPdfBarcode(x+21,baseY+35,350,42,product.id);
-    s+=textCmd(x+174,baseY+19,product.id,11,true,'0.12 0.18 0.21');
-    s+=drawPdfQr(x+w-107,baseY+9,84,item);
+    s+=lineCmd(x+16,baseY+76,x+428,baseY+76);
+    const lot=item.lot||'____________',expiry=item.expiry||'____/______',units=item.units||'_____';
+    s+=textCmd(x+16,baseY+59,'LOTE',9.8,true,'0.22 0.35 0.39');
+    s+=textCmd(x+176,baseY+59,'CADUCIDAD',9.8,true,'0.22 0.35 0.39');
+    s+=textCmd(x+326,baseY+59,'PZS.',9.8,true,'0.22 0.35 0.39');
+    function fitSpec(value,width){let size=16.5;while(size>9.5&&calcWidth(value,size,true)>width)size-=0.5;return size;}
+    s+=textCmd(x+16,baseY+35,lot,fitSpec(lot,150),true,'0.07 0.18 0.22');
+    s+=textCmd(x+176,baseY+35,expiry,fitSpec(expiry,142),true,'0.07 0.18 0.22');
+    s+=textCmd(x+326,baseY+35,units,fitSpec(units,95),true,'0.07 0.18 0.22');
+    // El QR conserva el payload MXCPM1 con lote, caducidad y piezas.
+    s+=drawPdfQr(x+w-120,baseY+14,100,item);
     return {draw:s,truncated:title.truncated||desc.truncated};
   }
   function assemblePdf(pagesContent) {
@@ -724,15 +708,18 @@ window.CPM_CATALOG = [{"id":"0022.00","full":"010.000.0022.00","name":"CASEINATO
   }
   function generatePdfBlob() {
     const labels=expanded();
-    if(!labels.length) throw new Error('Agrega al menos una etiqueta.');
-    const pages=[]; let truncated=0;
-    for(let i=0;i<labels.length;i+=2) {
+    if(!labels.length)throw new Error('Agrega al menos una etiqueta.');
+    const pages=[];let truncated=0;
+    const bases=[528,276,24]; // 3 etiquetas de 242 pt; espacios de 10 pt
+    for(let i=0;i<labels.length;i+=3){
       let page='';
-      const first=drawPdfLabel(labels[i],402);page+=first.draw; truncated+=first.truncated?1:0;
-      if(labels[i+1]) {const second=drawPdfLabel(labels[i+1],24);page+=second.draw;truncated+=second.truncated?1:0;}
+      for(let j=0;j<3&&i+j<labels.length;j++){
+        const drawn=drawPdfLabel(labels[i+j],bases[j]);
+        page+=drawn.draw;truncated+=drawn.truncated?1:0;
+      }
       pages.push(page);
     }
-    return {blob:assemblePdf(pages), truncated, pages:pages.length};
+    return {blob:assemblePdf(pages),truncated,pages:pages.length};
   }
   function downloadPdf() {
     if(!queue.length) {notify('Agrega primero una etiqueta para generar el PDF.',true);return;}
