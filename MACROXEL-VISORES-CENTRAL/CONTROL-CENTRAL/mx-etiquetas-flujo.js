@@ -54,8 +54,8 @@ function init(){
   setTimeout(()=>{
    const after=parseInt(count?.textContent||'0',10)||0;
    // Solo volver al buscador si se agregó o actualizó correctamente.
-   const cleared=!lot.value&&!expiry.value && !$('chosen-product')?.hidden===false;
-   if(after>beforeCount || (cleared && !search.value)){
+   const cleared=!!$('chosen-product')?.hidden && !lot.value && !expiry.value && !search.value;
+   if(after>beforeCount || cleared){
     $('tab-editor')?.click();
     search.scrollIntoView({block:'center',behavior:'smooth'});
     search.focus({preventScroll:true});
