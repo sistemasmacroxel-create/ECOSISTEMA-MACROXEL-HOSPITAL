@@ -851,12 +851,30 @@ window.CPM_CATALOG = [{"id":"0022.00","full":"010.000.0022.00","name":"CASEINATO
   // Enviar las cantidades FÍSICAS de los lotes preparados; las copias son impresiones, NO piezas.
   $('mxLabelsSendWarehouse').addEventListener('click',async()=>{
     if(!queue.length){notify('Primero prepara al menos una etiqueta.',true);return}
-    const items=queue.map(l=>({
-      clave:BY_ID.get(l.id)?.full||l.id,
-      lote:String(l.lot||''),
-      caducidad:String(l.expiry||''),
-      piezas:String(l.units??''),
-      copias:l.copies
+    // Cada registro preparado representa una caja / grupo de piezas contadas.
+    // Las COPIAS son sólo impresiones de la misma caja y NO multiplican su contenido.
+    // Un mismo producto, lote y caducidad puede ocupar muchas cajas: sumar sus piezas
+    // antes de enviarlas para que Conteo Almacén reciba una sola fila física por lote.
+    const grouped=new Map();
+    for(const l of queue){
+      const clave=String(BY_ID.get(l.id)?.full||l.id).trim();
+      const lote=String(l.lot||'').trim();
+      const caducidad=String(l.expiry||'').trim();
+      const raw=String(l.units??'').trim();
+      if(!/^\\d+$/.test(raw)||!Number.isSafeInteger(Number(raw)))
+        {notify('Revisa las piezas de cada caja antes de enviar al conteo.',true);return;}
+      const normalizedCode=clave.replace(/\\D/g,'');
+      const key=JSON.stringify([normalizedCode,lote.toUpperCase().replace(/\\s+/g,''),caducidad]);
+      const current=grouped.get(key);
+      const total=Number(raw)+(current?.piezas||0);
+      if(!Number.isSafeInteger(total)||total>999999)
+        {notify('El total de piezas de un lote supera el máximo permitido (999999).',true);return;}
+      if(current){current.piezas=total;current.cajas++;}
+      else grouped.set(key,{clave,lote,caducidad,piezas:total,cajas:1,copias:1});
+    }
+    const items=Array.from(grouped.values(),l=>({
+      clave:l.clave,lote:l.lote,caducidad:l.caducidad,
+      piezas:String(l.piezas),copias:1
     }));
     const btn=$('mxLabelsSendWarehouse');btn.disabled=true;
     try{
