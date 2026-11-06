@@ -1041,7 +1041,7 @@ body.mx-auth-blue-flash-v167::after{content:"";position:fixed;inset:0;z-index:21
 </section>
 <section class="mx-hidden" id="etiquetasView" aria-label="Generador de etiquetas CPM">
 <div class="card" style="padding:0;overflow:hidden;border-radius:14px">
-<iframe id="mxEtiquetasFrame" title="Macroxel: Generador de etiquetas CPM" src="etiquetas.html?v=20261105m-envio-corregido" loading="lazy" style="width:100%;height:calc(100dvh - 155px);min-height:750px;border:0;display:block;background:#f2f6f7" allow="clipboard-write"></iframe>
+<iframe id="mxEtiquetasFrame" title="Macroxel: Generador de etiquetas CPM" src="etiquetas.html?v=20261106n-altas-locales" loading="lazy" style="width:100%;height:calc(100dvh - 155px);min-height:750px;border:0;display:block;background:#f2f6f7" allow="clipboard-write"></iframe>
 </div></section>
 <section class="mx-hidden" id="transferView">
 <div class="card transfer-card">
@@ -3627,7 +3627,20 @@ function sessionHasActiveCount(sess){const rows=Object.values(sess?.rows||{});re
 function restoreActiveSelection(){const db=loadDb(),branch=db[progressBranch()]||{};let best=null;for(const sess of Object.values(branch)){if(!sess||!MODES[sess.mode]||!sessionHasActiveCount(sess))continue;const t=Date.parse(sess.updatedAt||sess.startedAt||0)||0;if(!best||t>best.t)best={sess,t}}if(!best){if(!state.modeChosen){state.modePanelOpen=true;state.selectedLocation='';state.locationCollapsed=false;state.progress=new Map();state.sessionId='';state.startedAt=''}return false}state.mode=best.sess.mode;state.modeChosen=true;state.modePanelOpen=false;state.selectedLocation=state.mode==='ubicacion'?txt(best.sess.location):'';state.locationCollapsed=false;loadSession();return true}
 function sessionKey(){return state.mode+'::'+storeScope()}
 function tryLegacyLocationSession(){if(state.mode!=='ubicacion'||!state.selectedLocation)return null;try{const old=JSON.parse(localStorage.getItem(LEGACY_SHELF_PROGRESS_KEY)||'{}'),br=old?.[progressBranch()]||{},keys=[norm(state.selectedLocation),state.selectedLocation===NO_LOCATION?'__SIN_UBICACION__':''];for(const k of keys){if(k&&br[k])return br[k]}}catch(_e){}return null}
-function loadSession(){state.progress=new Map();state.sessionId='';state.startedAt='';if(state.mode==='ubicacion'&&!state.selectedLocation)return;const db=loadDb(),stored=db[progressBranch()]?.[sessionKey()]||tryLegacyLocationSession(),b=sessionHasActiveCount(stored)?stored:null;if(b&&typeof b==='object'){state.sessionId=txt(b.sessionId);state.startedAt=txt(b.startedAt);for(const[k,v]of Object.entries(b.rows||{}))state.progress.set(k,v)}if(!state.sessionId){state.sessionId='count_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);state.startedAt=new Date().toISOString();saveSession()}}
+function loadSession(){state.progress=new Map();state.sessionId='';state.startedAt='';if(state.mode==='ubicacion'&&!state.selectedLocation)return;const db=loadDb(),stored=db[progressBranch()]?.[sessionKey()]||tryLegacyLocationSession(),b=sessionHasActiveCount(stored)?stored:null;if(b&&typeof b==='object'){state.sessionId=txt(b.sessionId);state.startedAt=txt(b.startedAt);for(const[k,v]of Object.entries(b.rows||{}))state.progress.set(k,v)}if(!state.sessionId){state.sessionId='count_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);state.startedAt=new Date().toISOString();saveSession()}mxLabelRestoreNewRows()}
+function mxLabelRestoreNewRows(){
+ if(state.mode!=='almacen'||!state.progress)return;
+ let added=false;
+ for(const rec of state.progress.values()){
+  const raw=rec?.newProductRow;
+  if(!raw||!txt(raw.clave)||!txt(raw.lote))continue;
+  const row=parseObjectRow(raw);
+  if(!state.rows.some(r=>mxLabelDigits(r.clave)===mxLabelDigits(row.clave)&&norm(r.lote)===norm(row.lote)&&mxLabelExpiry(r.caducidad).month===mxLabelExpiry(row.caducidad).month)){
+   state.rows.push(row);added=true;
+  }
+ }
+ if(added)rebuildIndexes();
+}
 function saveSession(){if(state.mode==='ubicacion'&&!state.selectedLocation)return;const db=loadDb(),br=progressBranch(),sk=sessionKey();db[br]=db[br]||{};db[br][sk]={mode:state.mode,location:state.mode==='ubicacion'?state.selectedLocation:'',sessionId:state.sessionId||('count_'+Date.now()),startedAt:state.startedAt||new Date().toISOString(),updatedAt:new Date().toISOString(),rows:Object.fromEntries(state.progress)};saveDb(db)}
 function recOf(r){return state.progress.get(rowKey(r))||null}
 function done(rec){return !!rec&&['reviewed','captured','sent','applied'].includes(txt(rec.status).toLowerCase())}
@@ -3724,7 +3737,8 @@ async function submitFinalize(){
  if(!confirm(confirmText))return;
  state.finalizeBusy=true;const btn=$('mxIcFinalizeSend');if(btn)btn.disabled=true;
  try{
-  const br=await exactBranch(true),id=`invcount_${Date.now()}_${Math.random().toString(36).slice(2,9)}`,now=new Date(),fields=targetFields(),items=entries.map(([k,rec])=>{const r=state.rowByKey.get(k)||{};return{inventoryId:txt(r.inventoryId),clave:txt(r.clave||rec.clave),codigo_barras:txt(r.codigo_barras),descripcion:txt(r.descripcion),unidad:txt(r.unidad),lote:txt(r.lote||rec.lote),caducidad:txt(r.caducidad||rec.caducidad),expectedAlmacen:num(rec.expectedAlmacen),expectedEstantes:num(rec.expectedEstantes),almacenNuevo:fields.includes('almacen')?num(rec.physicalAlmacen):num(rec.expectedAlmacen),estantesNuevo:fields.includes('estantes')?num(rec.physicalEstantes):num(rec.expectedEstantes),reconcileMovements:true,reconcileFields:fields,countedAt:rec.countedAt,countedAtMs:num(rec.countedAtMs),countSessionId:state.sessionId,ubicacion:state.mode==='ubicacion'?state.selectedLocation:canonicalLocation(r.ubicacion)}}),label=state.mode==='ubicacion'?`Inventario por ubicación · ${scope}`:modeLabel(),req={id,status:'pending',estado:'PENDIENTE_VALIDACION',source:'VISOR_TRANSFERENCIAS_CONTEO_UNIFICADO',branch:br,systemId:br,inventoryMode:state.mode,inventoryModeLabel:label,createdAt:now.toISOString(),createdAtMs:now.getTime(),createdBy:operator(),deviceId:device(),totalProductos:items.length,items,viewerVersion:'1.0.2',snapshotAt:state.snapshotAt,countSessionId:state.sessionId,ubicacion:state.mode==='ubicacion'?state.selectedLocation:'',untouchedPolicy:'KEEP_EXISTING',untouchedProducts:uncountedTotal};
+  if(!navigator.onLine)throw new Error('Sin conexión. El conteo está guardado localmente. Conéctate antes de finalizar.');
+  const br=await exactBranch(true),id=`invcount_${Date.now()}_${Math.random().toString(36).slice(2,9)}`,now=new Date(),fields=targetFields(),items=entries.map(([k,rec])=>{const r=state.rowByKey.get(k)||{};return{inventoryId:rec.newProduct?'':txt(r.inventoryId),clave:txt(r.clave||rec.clave),codigo_barras:txt(r.codigo_barras),descripcion:txt(r.descripcion),unidad:txt(r.unidad),lote:txt(r.lote||rec.lote),caducidad:txt(r.caducidad||rec.caducidad),isNewProduct:!!rec.newProduct,createIfMissing:!!rec.newProduct,expectedAlmacen:num(rec.expectedAlmacen),expectedEstantes:num(rec.expectedEstantes),almacenNuevo:fields.includes('almacen')?num(rec.physicalAlmacen):num(rec.expectedAlmacen),estantesNuevo:fields.includes('estantes')?num(rec.physicalEstantes):num(rec.expectedEstantes),reconcileMovements:true,reconcileFields:fields,countedAt:rec.countedAt,countedAtMs:num(rec.countedAtMs),countSessionId:state.sessionId,ubicacion:state.mode==='ubicacion'?state.selectedLocation:canonicalLocation(r.ubicacion)}}),label=state.mode==='ubicacion'?`Inventario por ubicación · ${scope}`:modeLabel(),req={id,status:'pending',estado:'PENDIENTE_VALIDACION',source:'VISOR_TRANSFERENCIAS_CONTEO_UNIFICADO',branch:br,systemId:br,inventoryMode:state.mode,inventoryModeLabel:label,createdAt:now.toISOString(),createdAtMs:now.getTime(),createdBy:operator(),deviceId:device(),totalProductos:items.length,items,viewerVersion:'1.0.2',snapshotAt:state.snapshotAt,countSessionId:state.sessionId,ubicacion:state.mode==='ubicacion'?state.selectedLocation:'',untouchedPolicy:'KEEP_EXISTING',untouchedProducts:uncountedTotal};
   status('Enviando ajustes editados al Sistema Principal para validación…');
   await put?.('/inventory_count_requests/'+encodeURIComponent(br)+'/'+encodeURIComponent(id),req);await confirmRemoteRequest(br,id,req.createdAtMs);await bumpTransferSync(br);
   upsertPending({id,request:req,status:'pending',createdAt:req.createdAt,mode:state.mode,totalProductos:items.length,branch:br,remoteConfirmed:true});
@@ -3737,7 +3751,9 @@ async function submitFinalize(){
  }catch(e){status(e?.message||String(e),'bad');alert(e?.message||String(e))}finally{state.finalizeBusy=false;if(btn)btn.disabled=false}
 }
 async function syncCurrentSession(){if(state.syncBusy)return;const sent=[...state.progress.entries()].filter(([,v])=>txt(v?.status).toLowerCase()==='sent'&&v.requestId);if(!sent.length)return;state.syncBusy=true;let dirty=false;try{const br=await exactBranch(false),byRequest=new Map();for(const pair of sent){const id=txt(pair[1].requestId);if(!byRequest.has(id))byRequest.set(id,[]);byRequest.get(id).push(pair)}for(const[requestId,pairs]of byRequest){const resp=await get?.('/inventory_count_responses/'+encodeURIComponent(br)+'/'+encodeURIComponent(requestId)).catch(()=>null),st=txt(resp?.status).toLowerCase();if(!st)continue;if(st==='applied'){const items=Array.isArray(resp.items)?resp.items:[];for(const[k,rec]of pairs){const r=state.rowByKey.get(k),item=items.find(x=>(txt(rec.inventoryId)&&txt(x.inventoryId)===txt(rec.inventoryId))||(norm(x.clave)===norm(rec.clave)&&norm(x.lote)===norm(rec.lote)&&norm(x.caducidad)===norm(rec.caducidad)))||null;state.progress.set(k,{...rec,status:'applied',appliedAt:resp.appliedAt||resp.updatedAt||new Date().toISOString(),folio:resp.folio||'',finalEstantes:item?num(item.estantesDespues):num(rec.physicalEstantes),finalAlmacen:item?num(item.almacenDespues):num(rec.physicalAlmacen)});if(r&&item){r.almacen=num(item.almacenDespues);r.estantes=num(item.estantesDespues)}dirty=true}}else if(st==='rejected'){for(const[k,rec]of pairs){state.progress.set(k,{...rec,status:'captured',requestId:'',rejectedAt:resp.rejectedAt||resp.updatedAt||new Date().toISOString(),rejection:resp.message||'El Principal rechazó el ajuste.'});dirty=true}}}if(dirty){saveSession();state.revision++;state.filterToken='';render();try{window.mxSharedInventoryHub?.invalidate?.();await window.mxSharedInventoryHub?.syncStocks?.(true)}catch(_e){}}}finally{state.syncBusy=false}}
-function acceptPayload(br,payload){if(!payload||!Array.isArray(payload.items))return false;const rows=parseRows(payload),sig=JSON.stringify(rows.map(r=>[rowKey(r),r.clave,r.descripcion,r.lote,r.caducidad,r.codigo_barras,r.almacen,r.estantes,r.unidad,r.clasificacion,r.restriccion,r.departamento,r.ubicacion]));const branchChanged=state.branch&&state.branch!==br;state.lastLoadedAt=Date.now();state.snapshotAt=txt(payload?.meta?.updatedAtText||payload?.meta?.updatedAt)||state.snapshotAt||new Date().toISOString();if(!branchChanged&&state.payloadSig===sig){status('');return false;}state.payloadSig=sig;state.rows=rows;state.branch=br;state.page=Math.max(1,state.page||1);rebuildIndexes();if(branchChanged||(!state.modeChosen&&!state.sessionId))restoreActiveSelection();const visible=$('transferAdjustView')&&!$('transferAdjustView').classList.contains('mx-hidden');if(visible)render();status('');return true}
+function acceptPayload(br,payload){if(!payload||!Array.isArray(payload.items))return false;const rows=parseRows(payload),sig=JSON.stringify(rows.map(r=>[rowKey(r),r.clave,r.descripcion,r.lote,r.caducidad,r.codigo_barras,r.almacen,r.estantes,r.unidad,r.clasificacion,r.restriccion,r.departamento,r.ubicacion]));const branchChanged=state.branch&&state.branch!==br;state.lastLoadedAt=Date.now();state.snapshotAt=txt(payload?.meta?.updatedAtText||payload?.meta?.updatedAt)||state.snapshotAt||new Date().toISOString();if(!branchChanged&&state.payloadSig===sig){status('');return false;}state.payloadSig=sig;state.rows=rows;state.branch=br;
+try{localStorage.setItem('mxLabelsWarehouseSnapshotV1',JSON.stringify({branch:br,rows:rows,at:Date.now()}))}catch(_e){}
+mxLabelRestoreNewRows();state.page=Math.max(1,state.page||1);rebuildIndexes();if(branchChanged||(!state.modeChosen&&!state.sessionId))restoreActiveSelection();const visible=$('transferAdjustView')&&!$('transferAdjustView').classList.contains('mx-hidden');if(visible)render();status('');return true}
 async function canonicalInventoryPayload(force=false){const br=await exactBranch(false),hub=window.mxSharedInventoryHub;if(!hub?.allLotsRows)throw new Error('Inventario compartido no disponible.');const rows=await hub.allLotsRows(force);return{br,payload:{items:Array.isArray(rows)?rows:[],meta:{updatedAt:new Date().toISOString(),updatedAtText:'Inventario Principal · fuente única'}}}}
 async function refreshInBackground(force=false){if(state.refreshing)return false;state.refreshing=true;try{const x=await canonicalInventoryPayload(force);return acceptPayload(x.br,x.payload)}catch(_e){return false}finally{state.refreshing=false}}
 async function loadSnapshot(force=true){if(state.loading)return false;state.loading=true;const visible=$('transferAdjustView')&&!$('transferAdjustView').classList.contains('mx-hidden');try{if(visible)status('Cargando Inventario Principal · fuente única…');const x=await canonicalInventoryPayload(force);const ok=acceptPayload(x.br,x.payload);if(ok)syncHistory().catch(()=>{});return ok}catch(e){if(visible)status(e?.message||String(e),'bad');return false}finally{state.loading=false}}
@@ -3821,11 +3837,19 @@ window.addEventListener('message',async event=>{
 window.mxInventoryCountStageFromLabels=async function(labels){
  if(!Array.isArray(labels)||labels.length<1)throw new Error('No hay etiquetas preparadas.');
  if(labels.length>500)throw new Error('El máximo de registros por importación es 500.');
- await show();
- // La fotografía es del sistema principal, actualizada antes de preparar las diferencias.
- const latest=await canonicalInventoryPayload(true);
- acceptPayload(latest.br,latest.payload);
- if(!state.rows.length)throw new Error('No se pudo obtener el inventario principal. No se preparó ningún ajuste.');
+ // Usar la última fotografía local: no exigir conexión mientras se cuentan cajas.
+ if(!state.rows.length){
+  try{
+   const cache=JSON.parse(localStorage.getItem('mxLabelsWarehouseSnapshotV1')||'null');
+   if(cache?.rows?.length){state.rows=cache.rows.map(parseObjectRow);state.branch=txt(cache.branch)||state.branch;rebuildIndexes()}
+  }catch(_e){}
+ }
+ if(!state.rows.length){
+  try{const latest=await canonicalInventoryPayload(true);acceptPayload(latest.br,latest.payload)}catch(_e){}
+ }
+ if(!state.rows.length)throw new Error('No hay fotografía local del inventario. Abre Control Central una vez con conexión antes de contar sin señal.');
+ try{await show()}catch(_e){render()}
+ // Los registros capturados se compararán otra vez en el Principal al finalizar.
  state.mode='almacen';state.modeChosen=true;state.modePanelOpen=false;
  state.selectedLocation='';state.page=1;state.rowStatusFilter='all';state.filterToken='';
  loadSession();render();
@@ -3839,18 +3863,28 @@ window.mxInventoryCountStageFromLabels=async function(labels){
    errors.push(name+': cantidad física inválida o sin capturar');continue;
   }
   const result=mxLabelFindStockRow(l);
-  if(!result.row){errors.push(name+': '+result.error);continue}
-  const row=result.row,k=rowKey(row);
-  if(proposed.has(k)){errors.push(name+': lote repetido entre etiquetas. Unifica sus piezas primero; las COPIAS no suman existencias.');continue}
-  proposed.set(k,{row,physical:Number(q)});
+  if(!result.row&&result.error!=='No existe una coincidencia exacta en el inventario principal'){
+   errors.push(name+': '+result.error);continue;
+  }
+  const isNew=!result.row;
+  const row=result.row||{
+   inventoryId:'',clave:txt(l.clave),descripcion:txt(l.descripcion||l.nombre||l.clave),
+   lote:txt(l.lote),caducidad:txt(l.caducidad),codigo_barras:'',
+   almacen:0,estantes:0,unidad:txt(l.unidad||''),clasificacion:'',restriccion:'',departamento:'',ubicacion:'',mxPendingNew:true
+  };
+  const k=rowKey(row);
+  const current=proposed.get(k);
+  if(current){if(current.physical+Number(q)>999999){errors.push(name+': máximo de piezas excedido');continue}current.physical+=Number(q)}
+  else proposed.set(k,{row,physical:Number(q),isNew});
  }
  if(errors.length){
   throw new Error('Se encontraron '+errors.length+' etiqueta(s) que requieren revisión. NO se marcará nada en cero.\n'+errors.slice(0,7).join('\n')+(errors.length>7?'\n…':''));
  }
- const zeros=state.rows.filter(r=>int(r.almacen)>0&&!proposed.has(rowKey(r)));
+ const zeros=state.rows.filter(r=>!r.mxPendingNew&&int(r.almacen)>0&&!proposed.has(rowKey(r)));
  const currentProgress=state.progress.size;
  const currentSignature=state.payloadSig;
  const staged=[...proposed.values()];
+ const newQty=staged.filter(x=>x.isNew).length;
  const existingQty=staged.reduce((n,x)=>n+int(x.row.almacen),0);
  const physicalQty=staged.reduce((n,x)=>n+x.physical,0);
  const zeroQty=zeros.reduce((n,r)=>n+int(r.almacen),0);
@@ -3861,7 +3895,7 @@ window.mxInventoryCountStageFromLabels=async function(labels){
  const sample=staged.slice(0,15).map(x=>'<tr><td>'+esc(x.row.clave)+'</td><td>'+esc(x.row.lote||'—')+'</td><td>'+esc(x.row.caducidad||'—')+'</td><td>'+int(x.row.almacen)+'</td><td><b>'+x.physical+'</b></td></tr>').join('');
  modal.innerHTML='<div role="dialog" aria-modal="true" aria-labelledby="mxLblInvTitle" style="background:#fff;color:#163744;width:min(700px,100%);margin:3vh 0;border-radius:16px;padding:20px;box-shadow:0 12px 45px #05111d80">'+
  '<h2 id="mxLblInvTitle" style="margin:0 0 12px">📦 Preparar conteo de Almacén desde Etiquetas</h2>'+
- '<p><b>'+staged.length+' lotes</b> de Etiquetas identificados · Existencia actual de Almacén en esos lotes: <b>'+existingQty+'</b> pzs · Conteo capturado: <b>'+physicalQty+'</b> pzs.</p>'+
+ '<p><b>'+staged.length+' lotes</b> de Etiquetas identificados · <b>'+newQty+' altas nuevas pendientes</b> · Existencia actual de Almacén en esos lotes: <b>'+existingQty+'</b> pzs · Conteo capturado: <b>'+physicalQty+'</b> pzs.</p>'+
  '<p style="margin:9px 0"><b>'+zeros.length+' lotes</b> de Almacén no aparecen en las etiquetas (suman <b>'+zeroQty+'</b> piezas existentes).</p>'+
  '<p style="margin:10px 0;color:#9c4c13"><b>Verifica las piezas:</b> algunas etiquetas anteriores pudieron tomar Almacén + Estantes como cantidad sugerida. Las copias para impresión nunca cuentan como piezas.</p>'+
  '<div style="overflow:auto;max-height:220px;border:1px solid #e4edef;border-radius:10px"><table style="width:100%;font-size:12px;border-collapse:collapse"><thead><tr><th>Clave</th><th>Lote</th><th>Caducidad</th><th>Almacén sistema</th><th>Físico</th></tr></thead><tbody>'+sample+'</tbody></table></div>'+
@@ -3897,7 +3931,17 @@ window.mxInventoryCountStageFromLabels=async function(labels){
     source:fromLabels?'ETIQUETAS_ALMACEN':'ETIQUETAS_NO_ENCONTRADO_CERO'
    });
   };
-  for(const item of staged)store(item.row,item.physical,true);
+  for(const item of staged){
+   if(item.isNew){
+    if(!state.rows.some(r=>rowKey(r)===rowKey(item.row)))state.rows.push(item.row);
+   }
+   store(item.row,item.physical,true);
+   if(item.isNew){
+    const key=rowKey(item.row),rec=state.progress.get(key);
+    state.progress.set(key,{...rec,newProductRow:{...item.row},newProduct:true,source:'ETIQUETAS_ALTA_LOCAL_PENDIENTE'});
+   }
+  }
+  rebuildIndexes();
   if(withZero)for(const r of zeros)store(r,0,false);
   saveSession();state.revision++;state.filterToken='';state.rowStatusFilter='all';state.page=1;
   // Mostrar primero los lotes importados (incluidos ceros), no los pendientes sin contar.
