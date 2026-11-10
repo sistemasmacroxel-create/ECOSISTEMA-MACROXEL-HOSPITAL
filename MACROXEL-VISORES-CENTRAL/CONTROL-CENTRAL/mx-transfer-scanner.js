@@ -251,10 +251,11 @@
           return;
         }
         direction.value=requiredValue;
-        direction.dispatchEvent(new Event('input',{bubbles:true}));
+        // Sólo change: el visor ya procesa y conserva la selección en este evento.
+        // Evitar una segunda validación/prompter y respetar cambios cancelados.
         direction.dispatchEvent(new Event('change',{bubbles:true}));
+        if(direction.value!==requiredValue)return;
         choice.remove();
-        if(!requireTransferDirection())return;
         void startCameraFlow();
       }));
     }
@@ -284,7 +285,14 @@
   }
     function boot(){
     const b=$('mxTransferScanner');if(!b)return;
-    b.addEventListener('click',e=>{e.preventDefault();askTransferDirection();});
+    b.addEventListener('click',e=>{
+      e.preventDefault();
+      const selected=$('transferDirection')?.value;
+      // El sentido ya se eligió en el formulario o en el primer escaneo:
+      // no volver a solicitarlo mientras siga seleccionado.
+      if(selected==='A2E'||selected==='E2A')void startCameraFlow();
+      else askTransferDirection();
+    });
   }
   // Extensión Inventario QR para Ajustar inventario → Almacén.
   if(!document.querySelector('script[data-mx-inventario-qr]')){
