@@ -172,7 +172,10 @@ async function resetAfterConfirmedSend(req){
  try{localStorage.removeItem(storage);localStorage.removeItem(pendingStorage)}catch(_){}
  const input=$('mxInvQrManual');if(input)input.value='';
  $('mxInvQrCamera').textContent='📷 Activar cámara';closeFinal();table();
- notify('✓ Conteo '+req.id+' ENVIADO, recibido y registros locales LIMPIADOS. Puedes iniciar otro conteo. Los ajustes quedan pendientes de VALIDACIÓN en Sistema Principal.');
+ notify('✓ Conteo '+req.id+' ENVIADO, recibido y registros locales LIMPIADOS. Actualizando inventario para un conteo nuevo…');
+ try{await loadStock()}catch(_e){}
+ table();
+ notify('✓ Conteo '+req.id+' ENVIADO y registros locales LIMPIADOS. Listo para empezar otro conteo. Los ajustes aún requieren VALIDACIÓN en Sistema Principal.');
 }
 async function sendPending(){
  const p=getPending();if(!p?.request?.items?.length){notify('No hay conteo guardado pendiente.');return false}
