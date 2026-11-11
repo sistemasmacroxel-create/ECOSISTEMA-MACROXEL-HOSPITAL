@@ -265,7 +265,7 @@
         <div class="form-divider"><span>Datos del producto</span></div>
         <div class="fields-grid">
           <div class="field-group"><label for="lot-input">Lote</label><input id="lot-input" maxlength="70" placeholder="Ej. A25-042" autocomplete="off" /></div>
-          <div class="field-group"><label for="expiry-input">Caducidad</label><input id="expiry-input" maxlength="20" placeholder="MM/AAAA" autocomplete="off" /></div>
+          <div class="field-group"><label for="expiry-input">Caducidad</label><input id="expiry-input" maxlength="10" placeholder="MM/AAAA" autocomplete="off" inputmode="numeric" /></div>
           <div class="field-group"><label for="units-input">Piezas</label><input id="units-input" type="number" min="0" max="999999" step="1" placeholder="Ej. 30" inputmode="numeric" /></div>
           <div class="field-group"><label for="copies-input">Copias de etiqueta</label><input id="copies-input" type="number" min="1" max="100" step="1" value="1" inputmode="numeric" /></div>
         </div>
@@ -433,7 +433,7 @@ window.CPM_CATALOG = [{"id":"0022.00","full":"010.000.0022.00","name":"CASEINATO
     elements.chosenName.textContent = product.name;
     elements.chosenCode.textContent = 'CPM ' + product.id + ' · Clave completa ' + product.full;
     elements.search.value = product.id;
-    if (!preserveDescription) {elements.desc.value = product.desc;if(!editingId){elements.lot.value='';elements.expiry.value='';elements.units.value='';}}
+    if (!preserveDescription) {elements.desc.value = product.desc;if(!editingId){elements.lot.value='';elements.expiry.value='';elements.expiry.dataset.dateStyle='';elements.units.value='';}}
     void loadInventoryLots(product);
     closeSuggestions();
     setFormMessage();
@@ -451,19 +451,52 @@ window.CPM_CATALOG = [{"id":"0022.00","full":"010.000.0022.00","name":"CASEINATO
     if(month)return month[2]+'/'+month[1];
     return s;
   }
+  // No precargar 0 ni cantidades antiguas: las piezas se capturan de nuevo en cada etiqueta.
+  function focusDataField(field, requestId=null, productId=null){
+    requestAnimationFrame(()=>{
+      if(requestId!==null&&(requestId!==lotsRequestId||selected?.id!==productId||editingId))return;
+      if(activeTab!=='editor'||!field)return;
+      field.scrollIntoView({block:'center',behavior:'smooth'});
+      field.focus({preventScroll:true});
+    });
+  }
   function chooseInventoryLot(row){
     elements.lot.value=String(row.lote||'');
     elements.expiry.value=formatInventoryCad(row.caducidad||row.cad||'');
-    const available=Math.max(0,Math.floor(Number(row.almacen||0)));
-    // Las etiquetas de almacén no deben cargar piezas que están en Estantes.
-    elements.units.value=String(available);
-    setFormMessage('Lote seleccionado. Las piezas sugeridas corresponden SOLO a Almacén; corrige según el conteo físico antes de generar la etiqueta.');
-    // Mostrar datos del lote inmediatamente, también al seleccionarse el único disponible.
-    requestAnimationFrame(()=>{
-      elements.lot.scrollIntoView({block:'center',behavior:'smooth'});
-      elements.lot.focus({preventScroll:true});
-    });
+    elements.expiry.dataset.dateStyle=elements.expiry.value.split('/').length===3?'full':'';
+    elements.units.value='';
+    setFormMessage('Lote seleccionado. Captura las piezas reales antes de generar la etiqueta.');
+    // Si el lote ya contiene caducidad, enfocar Pzs; de lo contrario, pedir la caducidad.
+    focusDataField(!elements.lot.value.trim()?elements.lot:!elements.expiry.value.trim()?elements.expiry:elements.units);
   }
+  function maskExpiryValue(value, deleting=false, dateStyle=''){
+    const raw=String(value||'');
+    const digits=raw.replace(/\D/g,'');
+    const full=dateStyle==='full'||/^\d{1,2}\/\d{1,2}\//.test(raw)||digits.length>6;
+    const clean=digits.slice(0,full?8:6);
+    if(!clean)return '';
+    if(full){
+      const a=clean.slice(0,2),b=clean.slice(2,4),c=clean.slice(4,8);
+      return a+(clean.length>2||clean.length===2&&!deleting?'/':'')+b+
+        (clean.length>4||clean.length===4&&!deleting?'/':'')+c;
+    }
+    return clean.slice(0,2)+(clean.length>2||clean.length===2&&!deleting?'/':'')+clean.slice(2,6);
+  }
+  elements.expiry.addEventListener('input',ev=>{
+    const field=elements.expiry,raw=field.value;
+    if(!raw.trim()){field.dataset.dateStyle='';return;}
+    const cursorDigits=raw.slice(0,field.selectionStart??raw.length).replace(/\D/g,'').length;
+    const deleting=String(ev.inputType||'').startsWith('delete');
+    // Si ya llegó en DD/MM/AAAA del inventario, conservar ese formato.
+    const full=field.dataset.dateStyle==='full'||/^\d{1,2}\/\d{1,2}\//.test(raw)||raw.replace(/\D/g,'').length>6;
+    field.dataset.dateStyle=full?'full':'';
+    const formatted=maskExpiryValue(raw,deleting,field.dataset.dateStyle);
+    field.value=formatted;
+    let cursor=0,seen=0;
+    while(cursor<formatted.length&&seen<cursorDigits){if(/\d/.test(formatted[cursor]))seen++;cursor++;}
+    if(!deleting&&formatted[cursor]==='/')cursor++;
+    try{field.setSelectionRange(cursor,cursor);}catch(_){/* Navegadores sin selección */}
+  });
   async function loadInventoryLots(product){
     const requestId=++lotsRequestId;
     const panel=$('mxInventoryLotsPanel'),host=$('mxInventoryLotsRows'),status=$('mxInventoryLotsStatus');
@@ -472,7 +505,7 @@ window.CPM_CATALOG = [{"id":"0022.00","full":"010.000.0022.00","name":"CASEINATO
     try{
       // Control Central y el iframe Etiquetas se publican bajo el mismo origen GitHub Pages.
       const hub=(window.parent!==window&&window.parent?.mxSharedInventoryHub)||window.mxSharedInventoryHub;
-      if(!hub?.lots){status.textContent='El inventario principal no está disponible en esta ventana. Puedes capturar lote y caducidad manualmente.';return;}
+      if(!hub?.lots){status.textContent='El inventario principal no está disponible en esta ventana. Puedes capturar lote y caducidad manualmente.';if(!editingId)focusDataField(elements.lot,requestId,product.id);return;}
       const key=product.full;
       const local=hub.localStocks?.()?.items||[];
       const sum=local.find(r=>String(r.clave||'').replace(/\D/g,'').slice(-6)===key.replace(/\D/g,'').slice(-6));
@@ -489,10 +522,16 @@ window.CPM_CATALOG = [{"id":"0022.00","full":"010.000.0022.00","name":"CASEINATO
       host.innerHTML=currentLots.map((r,i)=>
         '<button type="button" class="mx-lot-option" data-mx-lot="'+i+'"><span><strong>Lote '+esc(r.lote)+'</strong><small>Caducidad '+esc(formatInventoryCad(r.caducidad||r.cad)||'—')+'</small><small>Almacén: '+Math.max(0,Number(r.almacen||0))+' · Estantes: '+Math.max(0,Number(r.estantes||0))+'</small></span><span class="mx-lot-qty">'+r.available+' pzs</span></button>'
       ).join('');
-      if(currentLots.length===1&&!editingId&&!elements.lot.value.trim()&&!elements.expiry.value.trim())chooseInventoryLot(currentLots[0]);
+      if(!editingId&&!elements.lot.value.trim()&&!elements.expiry.value.trim()){
+        if(currentLots.length===1)chooseInventoryLot(currentLots[0]);
+        else if(currentLots.length>1){
+          // No escoger un lote arbitrario: el operador elige cuál corresponde.
+          focusDataField(host.querySelector('[data-mx-lot]'),requestId,product.id);
+        }else focusDataField(elements.lot,requestId,product.id);
+      }
     }catch(err){
       if(requestId!==lotsRequestId)return;
-      status.textContent='No fue posible consultar los lotes: '+(err?.message||err)+'. Puedes capturar la etiqueta manualmente.';
+      status.textContent='No fue posible consultar los lotes: '+(err?.message||err)+'. Puedes capturar la etiqueta manualmente.';if(!editingId)focusDataField(elements.lot,requestId,product.id);
     }
   }
   $('mxInventoryLotsRows').addEventListener('click',ev=>{
@@ -511,6 +550,7 @@ window.CPM_CATALOG = [{"id":"0022.00","full":"010.000.0022.00","name":"CASEINATO
     elements.desc.value = '';
     elements.lot.value = '';
     elements.expiry.value = '';
+    elements.expiry.dataset.dateStyle = '';
     elements.units.value = '';
     elements.copies.value = '1';
     lotsRequestId++;
@@ -607,6 +647,7 @@ window.CPM_CATALOG = [{"id":"0022.00","full":"010.000.0022.00","name":"CASEINATO
     elements.desc.value=l.desc;
     elements.lot.value=l.lot;
     elements.expiry.value=l.expiry;
+    elements.expiry.dataset.dateStyle=l.expiry.split('/').length===3?'full':'';
     elements.units.value=l.units;
     elements.copies.value=String(l.copies);
     elements.add.textContent='✓ Guardar cambios';
