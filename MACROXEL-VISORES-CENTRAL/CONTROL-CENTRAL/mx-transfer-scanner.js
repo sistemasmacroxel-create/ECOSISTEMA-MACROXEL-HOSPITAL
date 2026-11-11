@@ -298,7 +298,7 @@
   if(!document.querySelector('script[data-mx-inventario-qr]')){
     const extra=document.createElement('script');
     extra.dataset.mxInventarioQr='1';
-    extra.src=new URL('mx-inventario-qr.js?v=20261105d',document.baseURI).href;
+    extra.src=new URL('mx-inventario-qr.js?v=20261110-v319-cero-conteo',document.baseURI).href;
     extra.onerror=()=>console.warn('Macroxel: no pudo cargar el modulo Inventario QR.');
     document.head.appendChild(extra);
   }
