@@ -8,7 +8,7 @@ const key=s=>String(s??'').trim().toUpperCase();
 const qty=v=>Math.max(0,Math.floor(Number(v)||0));
 const storage='mx-hps-conteo-qr-almacen-v1';
 const pendingStorage='mx-hps-conteo-qr-almacen-pendientes-v319';
-let stockVerified=false,warehouseSnapshotAt='';
+let stockVerified=false,warehouseSnapshotAt='',reviewSignature='',sending=false,finishing=false;
 const sameCode=(a,b)=>{const norm=v=>key(v).replace(/[^A-Z0-9.]/g,'');const x=norm(a),y=norm(b);return x===y||x.endsWith('.'+y)||y.endsWith('.'+x)};
 let root,scanner=null,scanning=false,processing=false,stock=[],unclassified=0,count=new Map(),last='',lastAt=0;
 // Aislar exclusivamente las existencias de ALMACEN antes de proponer bajas.
@@ -38,16 +38,14 @@ function flash(){
  layer.classList.add('mx-inv-flash-on');
 }
 async function cancelInventory(){
- if(!window.confirm('¿Cancelar este inventario QR? Se borrarán todos los productos escaneados en este conteo. El inventario del sistema principal NO se modificará.'))return;
- await stop();
- count.clear();stock=[];unclassified=0;last='';lastAt=0;processing=false;
- try{localStorage.removeItem(storage);}catch(_){}
+ if(sending||finishing)return notify('Hay un envío en proceso, no puede cancelarse.');
+ const p=getPending(),message=p&&!p.sent?'¿Cancelar y descartar también el conteo pendiente de envío? NO modifica Sistema Principal.':'¿Cancelar inventario QR y borrar todos los escaneos locales? NO modifica Sistema Principal.';
+ if(!window.confirm(message))return;
+ await stop();count.clear();stock=[];unclassified=0;stockVerified=false;last='';lastAt=0;processing=false;
+ try{localStorage.removeItem(storage);localStorage.removeItem(pendingStorage)}catch(_){}
  const input=$('mxInvQrManual');if(input)input.value='';
- $('mxInvQrCamera').textContent='📷 Activar cámara';
- closeFinal();
- table();
- notify('Inventario QR cancelado. No se modificaron existencias.');
- root.hidden=true;
+ $('mxInvQrCamera').textContent='📷 Activar cámara';closeFinal();table();
+ notify('Inventario QR cancelado sin cambios en el Sistema Principal.');root.hidden=true;
 }
 function decode(raw){
   const v=String(raw||'').trim();if(!v.startsWith('MXCPM1|'))throw Error('Usa el QR de las etiquetas Macroxel (MXCPM1).');
@@ -73,6 +71,11 @@ async function loadStock(){
  stockVerified=true;warehouseSnapshotAt=new Date().toISOString();
  return stock;
 }
+function countFingerprint(){
+ const scanned=[...count.values()].map(r=>[key(r.clave),key(r.lote),key(r.caducidad),qty(r.contado)]).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)));
+ const missing=unscannedWarehouse().map(r=>[key(r.clave),key(r.lote),key(r.caducidad),r.existencia]).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)));
+ return JSON.stringify({scanned,missing,verified:stockVerified});
+}
 function unscannedWarehouse(){return stock.filter(r=>r.existencia>0&&![...count.values()].some(c=>sameCode(c.clave,r.clave)&&key(c.lote)===key(r.lote)&&key(c.caducidad)===key(r.caducidad)))}
 function table(){
  const matched=new Set(count.keys());
@@ -82,7 +85,8 @@ function table(){
  $('mxInvQrMissing').textContent='Sin escanear en ALMACÉN: '+missing.length+' lotes. Excluidos por Estantes o ubicación no confirmada: '+unclassified+'. Ninguno de estos últimos se propondrá para baja.';
 }
 async function register(raw){
- const now=Date.now();if(processing||(raw===last&&now-lastAt<1400))return;
+ if(sending||finishing||getPending())return notify('Hay un conteo pendiente. Envíalo o cancélalo antes de escanear más.');
+  const now=Date.now();if(processing||(raw===last&&now-lastAt<1400))return;
  processing=true;last=raw;lastAt=now;
  try{
  const d=decode(raw);
@@ -118,12 +122,18 @@ function exportCsv(data,name){
 }
 function finalize(){
  if(!count.size)return notify('Escanea por lo menos un producto.');
- const missing=unscannedWarehouse();
- const modal=$('mxInvQrFinal');modal.hidden=false;
- $('mxInvQrFinalSummary').textContent=count.size+' lotes escaneados y '+missing.length+' lotes con piezas en ALMACEN sin escanear. Puedes guardar el conteo aunque el almacén inicial esté en 0. ESTANTES no se modifica.';
- const del=$('mxInvQrDelete');if(del)del.disabled=!stockVerified||!missing.length;
+ if(sending||finishing)return notify('El conteo está en proceso.');
+ if(getPending())return notify('Hay un conteo guardado pendiente. Envíalo o cancélalo.');
+ const missing=unscannedWarehouse(),units=missing.reduce((n,r)=>n+r.existencia,0);
+ reviewSignature=countFingerprint();
+ $('mxInvQrFinal').hidden=false;
+ $('mxInvQrFinalSummary').textContent=count.size+' lotes contados. Hay '+missing.length+' lotes NO escaneados ('+units+' piezas registradas en ALMACÉN). Elige una opción ANTES de enviar:';
+ $('mxInvQrKeep').textContent='✅ CONSERVAR cantidades de no escaneados';
+ $('mxInvQrDelete').textContent='⚠️ PONER EN CERO no escaneados (solo ALMACÉN)';
+ $('mxInvQrDelete').disabled=!stockVerified||!missing.length;
+ $('mxInvQrFinalNote').textContent=stockVerified?'ESTANTES siempre se conserva. Los cambios se aplicarán al validarse en Sistema Principal.':'Sin inventario completo de ALMACÉN verificado no es seguro poner en cero. Puedes CONSERVAR.';
 }
-function closeFinal(){ $('mxInvQrFinal').hidden=true; }
+function closeFinal(){ $('mxInvQrFinal').hidden=true;reviewSignature=''; }
 function getPending(){try{return JSON.parse(localStorage.getItem(pendingStorage)||'null')}catch(_e){return null}}
 function setPending(p){try{localStorage.setItem(pendingStorage,JSON.stringify(p));return true}catch(_e){notify('Espacio local insuficiente: guarda un respaldo CSV antes de cerrar.');return false}}
 function getBranch(){const cfg=window.mxViewerGetCfg?.()||{};return String(cfg.branch||cfg.systemId||window.mxFixedPrincipalBinding?.currentId?.()||window.mxFixedPrincipalBinding?.systemId||'').toUpperCase().trim()}
@@ -131,7 +141,8 @@ function activeOperator(){return String(window.mxViewerGetCfg?.()?.usuario||wind
 async function buildRequest(mode){
  // Usar inventario con lotes incluso en 0. No limitarse a las existencias positivas.
  try{await loadStock()}catch(_e){}
- const all=[...count.values()],notFound=[],items=[],now=new Date(),session='qr-warehouse-'+now.getTime();
+   if(!reviewSignature||reviewSignature!==countFingerprint())throw Error('Cambió el inventario desde la revisión. Revisa nuevamente los NO escaneados antes de enviar.');
+  const all=[...count.values()],notFound=[],items=[],now=new Date(),session='qr-warehouse-'+now.getTime();
  for(const c of all){
   if(!Number.isInteger(Number(c.contado))||Number(c.contado)<0)throw Error('Cantidad de conteo inválida: '+c.clave+' / '+c.lote);
   const candidates=stock.filter(r=>sameCode(r.clave,c.clave)&&key(r.lote)===key(c.lote)&&key(r.caducidad)===key(c.caducidad));
@@ -152,45 +163,60 @@ async function buildRequest(mode){
   for(const r of unscannedWarehouse())items.push({inventoryId:r.inventoryId,clave:r.clave,descripcion:r.descripcion,lote:r.lote,caducidad:r.caducidad,expectedAlmacen:r.existencia,expectedEstantes:r.estantes,almacenNuevo:0,estantesNuevo:r.estantes,reconcileMovements:true,reconcileFields:['almacen'],autoZeroUncounted:true,countSessionId:session,ubicacion:'ALMACEN'});
  }
  const branch=getBranch(),id='invcount_qr_'+now.getTime()+'_'+Math.random().toString(36).slice(2,9);
- const req={id,status:'pending',estado:'PENDIENTE_VALIDACION',source:'VISOR_CENTRAL_INVENTARIO_QR_ALMACEN',branch,systemId:branch,inventoryMode:'almacen',inventoryModeLabel:'Inventario QR · Almacén',createdAt:now.toISOString(),createdAtMs:now.getTime(),createdBy:activeOperator(),totalProductos:items.length,items,viewerVersion:'1.0.319',snapshotAt:warehouseSnapshotAt,countSessionId:session,reason:'Conteo físico QR de almacén',untouchedPolicy:mode==='eliminar'?'ZERO_ONLY_VERIFIED_WAREHOUSE':'KEEP_EXISTING',untouchedProducts:mode==='eliminar'?0:unscannedWarehouse().length};
+ const req={id,status:'pending',estado:'PENDIENTE_VALIDACION',source:'VISOR_CENTRAL_INVENTARIO_QR_ALMACEN',branch,systemId:branch,inventoryMode:'almacen',inventoryModeLabel:'Inventario QR · Almacén',createdAt:now.toISOString(),createdAtMs:now.getTime(),createdBy:activeOperator(),totalProductos:items.length,items,viewerVersion:'1.0.321',uncountedPolicy:mode==='eliminar'?'zero':'keep',uncountedZeroed:mode==='eliminar'?unscannedWarehouse().length:0,snapshotAt:warehouseSnapshotAt,countSessionId:session,reason:'Conteo físico QR de almacén',untouchedPolicy:mode==='eliminar'?'ZERO_ONLY_VERIFIED_WAREHOUSE':'KEEP_EXISTING',untouchedProducts:mode==='eliminar'?0:unscannedWarehouse().length};
  return req;
 }
+async function resetAfterConfirmedSend(req){
+ // Nunca borrar si no se comprobó la recepción del mismo folio remoto.
+ await stop();count.clear();stock=[];unclassified=0;stockVerified=false;reviewSignature='';last='';lastAt=0;processing=false;
+ try{localStorage.removeItem(storage);localStorage.removeItem(pendingStorage)}catch(_){}
+ const input=$('mxInvQrManual');if(input)input.value='';
+ $('mxInvQrCamera').textContent='📷 Activar cámara';closeFinal();table();
+ notify('✓ Conteo '+req.id+' ENVIADO, recibido y registros locales LIMPIADOS. Puedes iniciar otro conteo. Los ajustes quedan pendientes de VALIDACIÓN en Sistema Principal.');
+}
 async function sendPending(){
- const p=getPending();if(!p?.request?.items?.length){notify('No hay conteo guardado pendiente de envío.');return false}
- if(p.sent){notify('El conteo ya fue enviado. Queda pendiente su validación por el Sistema Principal.');return true}
- const req=p.request,branch=getBranch();if(!/^MACROXEL-[A-Z0-9_-]{4,}$/.test(branch)){notify('Conteo guardado localmente. Vincula primero el visor con el Sistema Principal para enviarlo.');return false}
+ const p=getPending();if(!p?.request?.items?.length){notify('No hay conteo guardado pendiente.');return false}
+ if(sending||finishing){notify('Ya se procesa este envío.');return false}
+ if(p.sent){await resetAfterConfirmedSend(p.request);return true}
+ const req=p.request,branch=getBranch();
+ if(!/^MACROXEL-[A-Z0-9_-]{4,}$/.test(branch)){notify('Conteo guardado localmente. Vincula el visor al Sistema Principal para enviar.');return false}
  req.branch=branch;req.systemId=branch;
- if(navigator.onLine===false||typeof window.mxViewerPutJson!=='function'){notify('Conteo guardado en este dispositivo. Cuando tengas señal usa "Enviar conteo guardado".');return false}
+ if(navigator.onLine===false||typeof window.mxViewerPutJson!=='function'||typeof window.mxViewerFetchJson!=='function'){notify('Conteo guardado sin enviar. Al recuperar señal pulsa Enviar conteo guardado.');return false}
  const path='/inventory_count_requests/'+encodeURIComponent(branch)+'/'+encodeURIComponent(req.id);
+ sending=true;
  try{
-  await window.mxViewerPutJson(path,req);
-  const check=await window.mxViewerFetchJson?.(path);
-  if(!check||String(check.id)!==String(req.id))throw Error('El Sistema Principal aún no confirmó la recepción.');
-  setPending({request:req,sent:true,sentAt:new Date().toISOString()});
-  notify('✓ '+req.items.length+' lotes enviados para VALIDACIÓN en el Sistema Principal. Aún no están aplicados al inventario.');
-  closeFinal();return true;
- }catch(e){setPending({request:req,sent:false});notify('Conteo conservado localmente. No se confirmó el envío: '+(e?.message||e)+'. Intenta "Enviar conteo guardado" al recuperar señal.');return false}
+   await window.mxViewerPutJson(path,req);
+   const check=await window.mxViewerFetchJson(path);
+   if(!check||String(check.id)!==String(req.id)||!Array.isArray(check.items)||check.items.length!==req.items.length)throw Error('No hay confirmación íntegra del conteo en Firebase.');
+   setPending({request:req,sent:true,sentAt:new Date().toISOString()});
+   await resetAfterConfirmedSend(req);return true;
+ }catch(e){setPending({request:req,sent:false});notify('No se confirmó el envío, los escaneos NO se borraron. Reintenta con Enviar conteo guardado: '+(e?.message||e));return false}
+ finally{sending=false}
 }
 async function end(mode){
  if(mode!=='conservar'&&mode!=='eliminar')return;
- if(!count.size)return notify('No hay productos contados para guardar.');
- if(mode==='eliminar'&&!stockVerified)return notify('La baja requiere existencias ALMACEN verificadas. Puedes conservar y enviar todas las piezas escaneadas.');
- const pending=getPending();if(pending?.sent)return notify('Este conteo ya fue enviado y está pendiente de validación. Para comenzar otro inventario utiliza Cancelar inventario.');if(pending&&!pending.sent)return notify('Ya existe un conteo local pendiente. Envía ese conteo primero para evitar mezclar ajustes.');
- try{
-  const request=await buildRequest(mode);
-  if(!setPending({request,sent:false}))return;
-  notify('✓ Conteo de '+count.size+' lotes guardado localmente. Enviando para validación…');
-  closeFinal();await sendPending();
- }catch(e){notify('No se borró el conteo: '+(e?.message||e));}
+ if(sending||finishing)return notify('Ya se procesa el conteo.');
+ if(!count.size)return notify('No hay escaneos para enviar.');
+ if(!reviewSignature||reviewSignature!==countFingerprint())return notify('El conteo cambió. Abre Finalizar conteo para revisar de nuevo.');
+ if(mode==='eliminar'&&!stockVerified)return notify('No hay inventario ALMACÉN verificado. Conserva no escaneados.');
+ if(getPending())return notify('Hay un conteo pendiente, envíalo o cancélalo.');
+ const missing=unscannedWarehouse(),units=missing.reduce((n,r)=>n+r.existencia,0);
+ if(mode==='eliminar'&&!window.confirm('¿CONFIRMAS poner en CERO '+missing.length+' lotes NO escaneados ('+units+' piezas) SOLO en ALMACÉN? ESTANTES permanecerá intacto.'))return;
+ finishing=true;let saved=false;
+ try{const req=await buildRequest(mode);if(!setPending({request:req,sent:false}))return;saved=true;closeFinal();notify('Conteo guardado. Enviando a Sistema Principal…')}
+ catch(e){notify('NO se borró el conteo: '+(e?.message||e))}
+ finally{finishing=false}
+ if(saved)await sendPending();
 }
 function open(){
  root=$('mxInvQrOverlay');root.hidden=false;
+  const oldPending=getPending();if(oldPending?.sent){void resetAfterConfirmedSend(oldPending.request);return;}
  loadStock().then(()=>{table();notify('Conteo listo: los lotes en cero pueden registrarse. Estantes permanece intacto.');}).catch(e=>{table();notify('Conteo local disponible sin conexión. '+(e?.message||e));});
 }
 function init(){
  const style=document.createElement('style');style.textContent='#mxInvQrFlash{position:fixed;inset:0;z-index:2147483600;background:rgba(41,220,125,.55);opacity:0;pointer-events:none}#mxInvQrFlash.mx-inv-flash-on{animation:mxInvQrFlash .45s ease-out forwards}@keyframes mxInvQrFlash{0%{opacity:0}20%{opacity:1}100%{opacity:0}}#mxInvQrCancelInventory{background:#ad3333!important}'+'#mxInvQrOverlay[hidden],#mxInvQrFinal[hidden]{display:none!important}#mxInvQrOverlay{position:fixed;inset:0;z-index:2147483000;background:#102b38eb;padding:14px;overflow:auto}#mxInvQrPanel{background:#fff;color:#173846;border-radius:15px;max-width:700px;margin:auto;padding:18px}#mxInvQrPanel button{padding:10px 14px;border-radius:8px;border:0;background:#0c5363;color:white;font-weight:700;cursor:pointer;margin:3px}#mxInvQrRows td,#mxInvQrPanel th{border-bottom:1px solid #dbe5e8;padding:6px;text-align:left}#mxInvQrFinal{border:2px solid #ad6a19;padding:15px;background:#fff9e8;border-radius:12px;margin-top:12px}#mxInvQrReader{max-width:430px;margin:auto}';document.head.appendChild(style);
  root=document.createElement('div');root.id='mxInvQrOverlay';root.hidden=true;
- root.innerHTML='<div id="mxInvQrFlash" aria-hidden="true"></div><div id="mxInvQrPanel"><h2>📦 Inventario QR · Almacén</h2><p>Conteo independiente. Nada se elimina automáticamente.</p><button id="mxInvQrCamera">📷 Activar cámara</button><button id="mxInvQrClose">Cerrar</button><button id="mxInvQrCancelInventory" type="button">Cancelar inventario</button><div id="mxInvQrReader"></div><p><input id="mxInvQrManual" placeholder="Pega QR MXCPM1|..." style="width:75%;padding:10px"><button id="mxInvQrAdd">Agregar</button></p><p id="mxInvQrStatus" role="status"></p><strong id="mxInvQrSummary"></strong><div style="max-height:35vh;overflow:auto"><table style="width:100%;border-collapse:collapse"><thead><tr><th>Clave</th><th>Lote</th><th>Caducidad</th><th>Contadas</th><th>Acción</th></tr></thead><tbody id="mxInvQrRows"></tbody></table></div><p id="mxInvQrMissing"></p><button id="mxInvQrFinish">Finalizar conteo</button><button id="mxInvQrSendPending" type="button">📤 Enviar conteo guardado</button><div id="mxInvQrFinal" hidden><h3>Productos no escaneados</h3><p id="mxInvQrFinalSummary"></p><button id="mxInvQrKeep">Conservar no encontrados</button><button id="mxInvQrDelete">Preparar baja de no encontrados</button><button id="mxInvQrCancel">Volver</button><p>Los ajustes se envían a VALIDACIÓN del Sistema Principal; no se aplican automáticamente. Los lotes no escaneados se conservan salvo baja expresa y verificada.</p></div></div>';
+ root.innerHTML='<div id="mxInvQrFlash" aria-hidden="true"></div><div id="mxInvQrPanel"><h2>📦 Inventario QR · Almacén</h2><p>Conteo independiente. Nada se elimina automáticamente.</p><button id="mxInvQrCamera">📷 Activar cámara</button><button id="mxInvQrClose">Cerrar</button><button id="mxInvQrCancelInventory" type="button">Cancelar inventario</button><div id="mxInvQrReader"></div><p><input id="mxInvQrManual" placeholder="Pega QR MXCPM1|..." style="width:75%;padding:10px"><button id="mxInvQrAdd">Agregar</button></p><p id="mxInvQrStatus" role="status"></p><strong id="mxInvQrSummary"></strong><div style="max-height:35vh;overflow:auto"><table style="width:100%;border-collapse:collapse"><thead><tr><th>Clave</th><th>Lote</th><th>Caducidad</th><th>Contadas</th><th>Acción</th></tr></thead><tbody id="mxInvQrRows"></tbody></table></div><p id="mxInvQrMissing"></p><button id="mxInvQrFinish">Finalizar conteo</button><button id="mxInvQrSendPending" type="button">📤 Enviar conteo guardado</button><div id="mxInvQrFinal" hidden><h3>Productos no escaneados</h3><p id="mxInvQrFinalSummary"></p><button id="mxInvQrKeep">✅ CONSERVAR cantidades</button><button id="mxInvQrDelete">⚠️ PONER EN CERO (ALMACÉN)</button><button id="mxInvQrCancel">Volver sin enviar</button><p id="mxInvQrFinalNote"></p><p>Elige una opción para enviar. Tras confirmarse su recepción, se limpia el conteo local. La aplicación de ajustes requiere VALIDACIÓN del Sistema Principal.</p></div></div>';
  document.body.appendChild(root);restore();
  $('mxInvQrCamera').onclick=()=>void camera();
  $('mxInvQrClose').onclick=()=>{void stop();root.hidden=true;};
@@ -202,7 +228,8 @@ function init(){
  $('mxInvQrRows').addEventListener('click',e=>{
    const button=e.target.closest('button[data-mx-remove]');
    if(!button)return;
-   const id=button.dataset.mxRemove;
+   if(sending||finishing||getPending())return notify('Conteo pendiente: envíalo o cancélalo para editar.');
+    const id=button.dataset.mxRemove;
    const row=count.get(id);
    if(!row)return;
    if(!window.confirm('¿Eliminar del conteo QR la clave '+row.clave+', lote '+row.lote+', caducidad '+row.caducidad+'? No se modificará el inventario del sistema principal.'))return;
@@ -211,7 +238,7 @@ function init(){
    save();table();
    notify('Producto/lote eliminado del conteo: '+row.clave+' · '+row.lote+'.');
  });
- $('mxInvQrRows').onchange=e=>{const id=e.target.dataset.mxQty;if(!id||!count.has(id))return;count.get(id).contado=qty(e.target.value);save();table();};
+ $('mxInvQrRows').onchange=e=>{if(sending||finishing||getPending())return notify('Conteo pendiente: envíalo o cancélalo para editar.');const id=e.target.dataset.mxQty;if(!id||!count.has(id))return;count.get(id).contado=qty(e.target.value);save();table();};
  // Se coloca junto a la opción de inventario Almacén dentro del módulo Ajustar inventario.
  const observer=new MutationObserver(()=>{
    if($('mxInventarioQrLaunch'))return;
