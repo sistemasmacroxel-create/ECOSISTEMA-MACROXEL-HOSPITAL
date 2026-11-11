@@ -79,10 +79,11 @@ function countFingerprint(){
 function unscannedWarehouse(){return stock.filter(r=>r.existencia>0&&![...count.values()].some(c=>sameCode(c.clave,r.clave)&&key(c.lote)===key(r.lote)&&key(c.caducidad)===key(r.caducidad)))}
 function table(){
  const matched=new Set(count.keys());
- let rows=[...count.entries()],missing=unscannedWarehouse();
+ let rows=[...count.entries()],missing=count.size?unscannedWarehouse():[];
  $('mxInvQrSummary').textContent='Escaneados: '+rows.length+' lotes · '+rows.reduce((n,[id,r])=>n+r.contado,0)+' piezas · No escaneados en ALMACÉN: '+missing.length+' lotes';
  $('mxInvQrRows').innerHTML=rows.slice(-120).reverse().map(([id,r])=>'<tr><td>'+escape(r.clave)+'</td><td>'+escape(r.lote)+'</td><td>'+escape(r.caducidad)+'</td><td><input data-mx-qty="'+escape(id)+'" type="number" min="0" step="1" value="'+r.contado+'" style="width:75px"></td><td><button type="button" data-mx-remove="'+escape(id)+'" aria-label="Quitar lote del conteo" style="background:#aa2e32;color:#fff">Eliminar</button></td></tr>').join('')||'<tr><td colspan="5">Sin escaneos</td></tr>';
- $('mxInvQrMissing').textContent='Sin escanear en ALMACÉN: '+missing.length+' lotes. Excluidos por Estantes o ubicación no confirmada: '+unclassified+'. Ninguno de estos últimos se propondrá para baja.';
+ $('mxInvQrMissing').textContent=count.size?'Sin escanear en ALMACÉN: '+missing.length+' lotes. Excluidos por Estantes o ubicación no confirmada: '+unclassified+'. Ninguno se pondrá en cero sin confirmación.':'No hay conteo activo. Escanea un QR para iniciar un inventario nuevo.';
+  const pending=getPending(),resend=$('mxInvQrSendPending');if(resend)resend.hidden=!pending||!!pending.sent;
 }
 async function register(raw){
  if(sending||finishing||getPending())return notify('Hay un conteo pendiente. Envíalo o cancélalo antes de escanear más.');
