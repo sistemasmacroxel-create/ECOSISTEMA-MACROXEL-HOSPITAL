@@ -926,6 +926,33 @@ body.mx-auth-blue-flash-v167::after{content:"";position:fixed;inset:0;z-index:21
 #mxModuleFolderOverlayV326 .viewer-tab .mx-menu-label{display:block!important;font-size:clamp(14px,2vw,19px)!important;font-weight:900!important;line-height:1.2!important}
 @media(max-width:520px){#mxModuleHomeV103 .mx-folder-preview{padding:8px;gap:4px;border-radius:12px}#mxModuleHomeV103 .mx-folder-preview>span{width:29px;height:29px;border-radius:7px;font-size:19px}#mxModuleFolderOverlayV326 .mx-folder-dialog-v326{padding:21px 16px 25px;border-radius:23px}#mxModuleFolderOverlayV326 .mx-folder-grid-v326{gap:10px}#mxModuleFolderOverlayV326 .viewer-tab{min-height:145px!important;padding:12px 6px!important;border-radius:17px!important}#mxModuleFolderOverlayV326 .viewer-tab .mx-menu-icon{font-size:39px!important}#mxModuleFolderOverlayV326 .viewer-tab .mx-menu-label{font-size:14px!important}}
 </style>
+<style id="mx-fixed-module-toolbar-v327">
+/* El control para regresar a inicio permanece visible durante el desplazamiento. */
+#mxModuleTopbarV103.show{
+  position:sticky!important;top:0!important;z-index:60!important;
+  display:flex!important;align-items:center!important;gap:12px!important;
+  min-height:49px!important;margin:0 0 9px!important;padding:7px 12px!important;
+  background:linear-gradient(110deg,#effdf3,#dcfce7)!important;
+  border:1px solid #86efac!important;border-radius:0 0 12px 12px!important;
+  box-shadow:0 5px 15px rgba(18,92,45,.16)!important;
+}
+#mxModuleTopbarV103 #mxModuleBackV103{
+  display:inline-flex!important;justify-content:center!important;align-items:center!important;
+  min-height:35px!important;height:auto!important;padding:8px 13px!important;
+  background:#15803d!important;color:#fff!important;border:1px solid #166534!important;
+  border-radius:9px!important;font-size:13px!important;line-height:1.1!important;
+  font-weight:900!important;box-shadow:0 2px 7px rgba(22,101,52,.2)!important;
+  cursor:pointer!important;
+}
+#mxModuleTopbarV103 #mxModuleBackV103:hover{background:#166534!important}
+#mxModuleTopbarV103 #mxModuleBackV103:focus-visible{outline:3px solid #22c55e!important;outline-offset:2px!important}
+#mxModuleTopbarV103 #mxModuleTitleV103{font-size:13px!important;color:#14532d!important;font-weight:900!important;min-width:0!important}
+@media(max-width:520px){
+  #mxModuleTopbarV103.show{min-height:46px!important;padding:6px 9px!important;gap:8px!important}
+  #mxModuleTopbarV103 #mxModuleBackV103{min-height:34px!important;font-size:12px!important;padding:7px 10px!important}
+  #mxModuleTopbarV103 #mxModuleTitleV103{font-size:11px!important}
+}
+</style>
 </head>
 
 <body>
@@ -974,8 +1001,7 @@ body.mx-auth-blue-flash-v167::after{content:"";position:fixed;inset:0;z-index:21
 
 
 <button class="viewer-tab" id="tabTransferAdjust" title="Ajustar inventario" type="button"><span class="mx-menu-icon" aria-hidden="true">⚙️</span><span class="mx-menu-label">Ajustar inventario</span></button>
-<button class="viewer-tab" id="tabAnalysisSystem" title="Análisis del sistema" type="button"><span class="mx-menu-icon" aria-hidden="true">📊</span><span class="mx-menu-label">Análisis</span></button>
-<button class="viewer-tab" id="tabAntibiotics" title="Antibióticos" type="button"><span class="mx-menu-icon" aria-hidden="true">💊</span><span class="mx-menu-label">Antibióticos</span></button>
+<button class="viewer-tab mx-folder-tile" id="mxFolderOpenAnalysisV327" type="button" aria-haspopup="dialog" aria-controls="mxModuleFolderOverlayV326" title="Análisis y antibióticos"><span class="mx-folder-preview" aria-hidden="true"><span>📊</span><span>💊</span></span><span class="mx-menu-label">Análisis y antibióticos</span></button>
 
 <button class="viewer-tab" id="tabTransferHistory" title="Historial de transferencias" type="button"><span class="mx-menu-icon" aria-hidden="true">🧾</span><span class="mx-menu-label">Historial</span></button>
 <button class="viewer-tab" id="tabViewerAuth" title="Autorizar nuevos visores" type="button"><span class="mx-menu-icon" aria-hidden="true">🔐</span><span class="mx-menu-label">Autorizar visores</span><span class="mx-auth-count" id="mxViewerAuthCountV167">0</span></button>
@@ -991,6 +1017,10 @@ body.mx-auth-blue-flash-v167::after{content:"";position:fixed;inset:0;z-index:21
     <div class="mx-folder-grid-v326" id="mxFolderTransferV326" hidden>
       <button class="viewer-tab" id="tabTransfer" title="Transferencias" type="button"><span class="mx-menu-icon" aria-hidden="true">🔁</span><span class="mx-menu-label">Transferencias</span></button>
       <button class="viewer-tab" id="tabPharmacyOrders" title="Surtido de farmacia" type="button"><span class="mx-menu-icon" aria-hidden="true">📋</span><span class="mx-menu-label">Surtido farmacia</span></button>
+    </div>
+    <div class="mx-folder-grid-v326" id="mxFolderAnalysisV327" hidden>
+      <button class="viewer-tab" id="tabAnalysisSystem" title="Análisis del sistema" type="button"><span class="mx-menu-icon" aria-hidden="true">📊</span><span class="mx-menu-label">Análisis</span></button>
+      <button class="viewer-tab" id="tabAntibiotics" title="Antibióticos" type="button"><span class="mx-menu-icon" aria-hidden="true">💊</span><span class="mx-menu-label">Antibióticos</span></button>
     </div>
   </div>
 </div>
@@ -5397,7 +5427,8 @@ function announce(){try{window.dispatchEvent(new CustomEvent('mx-module-active-c
 /* Navegación por carpetas tipo móvil. No modifica el código de los módulos originales. */
 const FOLDERS_V326={
  surtidos:{panel:'mxFolderSupplyV326',trigger:'mxFolderOpenSurtidosV326',title:'Surtidos',help:'Surtir colectivo · Surtir recetas'},
- transferencias:{panel:'mxFolderTransferV326',trigger:'mxFolderOpenTransferV326',title:'Transferencias',help:'Transferencias · Surtido farmacia'}
+ transferencias:{panel:'mxFolderTransferV326',trigger:'mxFolderOpenTransferV326',title:'Transferencias',help:'Transferencias · Surtido farmacia'},
+ analisis:{panel:'mxFolderAnalysisV327',trigger:'mxFolderOpenAnalysisV327',title:'Análisis y antibióticos',help:'Análisis · Antibióticos'}
 };
 let lastFolderTriggerV326=null;
 function closeFolderV326(restoreFocus=false){
