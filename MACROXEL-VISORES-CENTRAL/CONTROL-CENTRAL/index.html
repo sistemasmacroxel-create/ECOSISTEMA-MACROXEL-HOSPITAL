@@ -1957,7 +1957,7 @@ async function mxTrBumpVersion(path){const p=String(path||'');const key=p.includ
     return{catalog:MEM_CATALOG,meta};
   }
   function convertSingle(row,description){const a=Array.isArray(row?.one)?row.one:null;if(!a)return null;return{inventoryId:txt(a[0]),clave:txt(row.c),lote:txt(a[1]),caducidad:txt(a[2]),codigo_barras:txt(a[3]),almacen:num(a[4]),estantes:num(a[5]),unidad:txt(a[6]),clasificacion:txt(a[7]),restriccion:txt(a[8]),ubicacion:txt(a[9]),existencia:num(a[4])+num(a[5]),descripcion:txt(description)};}
-  function stockRows(catalog,totals){const catalogByKey=new Map((catalog||[]).map(p=>[norm(p?.clave),p]));return Object.values(totals||{}).filter(r=>r&&r.c).map(r=>{const clave=norm(r.c),p=catalogByKey.get(clave)||{},descripcion=txt(r.d||p.descripcion||clave),row={clave,descripcion,unidad:txt(r.u||p.unidad),clasificacion:txt(r.cl||r.one?.[7]||p.clasificacion),restriccion:txt(r.rs||r.one?.[8]||p.restriccion),existencia:num(r.e),almacen:num(r.a),estantes:num(r.s),lotes:num(r.l),seq:num(r.seq),singleLot:convertSingle(r,descripcion)};return(row.existencia>0||row.almacen>0||row.estantes>0)?row:null;}).filter(Boolean).sort((a,b)=>txt(a.descripcion||a.clave).localeCompare(txt(b.descripcion||b.clave),'es'));}
+  function stockRows(catalog,totals,includeZero=false){const catalogByKey=new Map((catalog||[]).map(p=>[norm(p?.clave),p]));return Object.values(totals||{}).filter(r=>r&&r.c).map(r=>{const clave=norm(r.c),p=catalogByKey.get(clave)||{},descripcion=txt(r.d||p.descripcion||clave),row={clave,descripcion,unidad:txt(r.u||p.unidad),clasificacion:txt(r.cl||r.one?.[7]||p.clasificacion),restriccion:txt(r.rs||r.one?.[8]||p.restriccion),existencia:num(r.e),almacen:num(r.a),estantes:num(r.s),lotes:num(r.l),seq:num(r.seq),singleLot:convertSingle(r,descripcion)};return(includeZero||row.existencia>0||row.almacen>0||row.estantes>0)?row:null;}).filter(Boolean).sort((a,b)=>txt(a.descripcion||a.clave).localeCompare(txt(b.descripcion||b.clave),'es'));}
   function localStocks(){const items=stockRows(MEM_CATALOG||embeddedCatalog(),MEM_TOTALS||{});return{items,updatedAt:MEM_UPDATED_AT,updatedAtText:MEM_UPDATED_TEXT||(items.length?'Inventario principal en memoria':'Inventario principal pendiente de sincronizar'),seq:MEM_SEQ};}
   async function hydrateStocks(branch){if(MEM_TOTALS)return;const disk=await cacheGet('stocks|'+branch).catch(()=>null);if(disk&&disk.totals&&typeof disk.totals==='object'){MEM_TOTALS=disk.totals;MEM_SEQ=num(disk.seq);MEM_UPDATED_AT=disk.updatedAt||null;MEM_UPDATED_TEXT=txt(disk.updatedAtText)}}
   async function syncStocks(force=false){
@@ -1988,7 +1988,7 @@ async function mxTrBumpVersion(path){const p=String(path||'');const key=p.includ
   async function requestLots(clave,force=false,expectedSeq=0){const key=norm(clave),branch=encodeURIComponent(cfg().branch),storeKey=cfg().branch+'|'+key,mem=LOT_CACHE.get(key),store=readLotStore(),disk=store[storeKey],fresh=x=>x&&Array.isArray(x.items)&&(!expectedSeq||num(x.v)>=num(expectedSeq));if(!force&&fresh(mem))return mem.items;if(!force&&fresh(disk)){LOT_CACHE.set(key,disk);return disk.items}await loadAllLotsDisk();const rootEntry=ALL_LOTS_ROOT?.[safeLotKey(key)];if(!force&&rootEntry&&(!expectedSeq||num(rootEntry?.v)>=num(expectedSeq))){const items=parseLotPayload(rootEntry,key),entry={v:num(rootEntry?.v)||num(expectedSeq),at:Date.now(),items};LOT_CACHE.set(key,entry);store[storeKey]=entry;writeLotStore(store);return items}try{const payload=await get('/inventory_lots_by_key/'+branch+'/'+safeLotKey(key)),items=parseLotPayload(payload,key),entry={v:num(payload?.v)||num(expectedSeq),at:Date.now(),items};LOT_CACHE.set(key,entry);store[storeKey]=entry;writeLotStore(store);if(ALL_LOTS_ROOT){const fk=safeLotKey(key);if(payload&&typeof payload==='object')ALL_LOTS_ROOT[fk]=payload;else delete ALL_LOTS_ROOT[fk];ALL_LOTS_SEQ=Math.max(ALL_LOTS_SEQ,num(payload?.v));fastPut('lots|'+cfg().branch,{seq:ALL_LOTS_SEQ,at:Date.now(),root:ALL_LOTS_ROOT}).catch(()=>{});}return items;}catch(e){if(force)throw new Error('No se pudieron verificar los lotes actualizados. No se usarán cantidades antiguas para transferir.');const stale=mem||disk;if(stale&&Array.isArray(stale.items)){LOT_CACHE.set(key,stale);return stale.items}if(rootEntry){const items=parseLotPayload(rootEntry,key);if(items.length)return items}throw new Error('No se pudieron actualizar los lotes. Revisa la conexión e intenta nuevamente.')}}
   function clearLotCache(clave){const store=readLotStore();resetAllLotsForBranch();if(clave){const key=norm(clave),fk=safeLotKey(key);LOT_CACHE.delete(key);delete store[cfg().branch+'|'+key];if(ALL_LOTS_ROOT)delete ALL_LOTS_ROOT[fk]}else{LOT_CACHE.clear();ALL_LOTS_ROOT=null;ALL_LOTS_SEQ=0;ALL_LOTS_DISK_LOADED=false;for(const k of Object.keys(store))delete store[k]}writeLotStore(store);if(ALL_LOTS_ROOT)fastPut('lots|'+cfg().branch,{seq:ALL_LOTS_SEQ,at:Date.now(),root:ALL_LOTS_ROOT}).catch(()=>{})}
   function getLocal(){return MEM_CATALOG||embeddedCatalog()}
-  window.mxCpmCache={sync:syncStocks,syncCatalog,requestLots,preloadLots,clearLotCache,localStocks,getLocal,storageMode:'MEMORY_INDEXEDDB_V142'};
+  window.mxCpmCache={sync:syncStocks,syncCatalog,requestLots,preloadLots,clearLotCache,localStocks,getLocal,allStockRows:()=>stockRows(MEM_CATALOG||embeddedCatalog(),MEM_TOTALS||{},true),storageMode:'MEMORY_INDEXEDDB_V142'};
   let mxWarmScheduled=false;
   function warm(){mxWarmScheduled=false;if(!window.__mxViewerLicensed||document.hidden)return;syncStocks(false).catch(()=>{});}
   function scheduleWarm(soon=false){if(mxWarmScheduled)return;mxWarmScheduled=true;if(soon)setTimeout(warm,20);else if('requestIdleCallback'in window)requestIdleCallback(warm,{timeout:3500});else setTimeout(warm,2600)}
@@ -2114,12 +2114,12 @@ async function allLotsRowsIncludingZero(force=false){
   const snapshot=await syncStocks(force);
   const raw=await window.mxCpmCache?.preloadLots?.(force);
   const root=raw&&typeof raw==='object'?raw:{};
-  const rows=parseAllLots(root,snapshot),existing=new Set();
+  const rows=parseAllLots(root,snapshot),existing=new Set(),zeroStockRows=window.mxCpmCache?.allStockRows?.()||[];
   const ref=arr=>[norm(arr.clave),norm(arr.lote),norm(arr.caducidad),txt(arr.inventoryId)].join('|');
   for(const r of rows)existing.add(ref(r));
   let catalog=[];try{catalog=(await window.mxCpmCache?.syncCatalog?.(false))?.catalog||[]}catch(_e){}
   const refs=new Map();
-  for(const row of [...catalog,...(snapshot?.items||[])])if(txt(row?.clave))refs.set(safeKey(row.clave),row);
+  for(const row of [...catalog,...(snapshot?.items||[]),...zeroStockRows])if(txt(row?.clave))refs.set(safeKey(row.clave),row);
   for(const [encoded,payload] of Object.entries(root)){
     if(!payload||!Array.isArray(payload.items))continue;
     let code=txt(refs.get(encoded)?.clave);
@@ -2136,8 +2136,17 @@ async function allLotsRowsIncludingZero(force=false){
       existing.add(k);rows.push(row);
     }
   }
-  // La lista se alimenta exclusivamente de lotes del Sistema Principal.
-  // Guardar 0 en esta vista no implica borrar el producto o cambiar ESTANTES.
+  // Respaldo de un único lote: algunos sistemas guardan el registro con cantidad cero
+  // solo dentro del total de CPM, sin entrada individual en el árbol de lotes.
+  for(const summary of zeroStockRows){
+    if(!summary?.singleLot)continue;
+    const lot=summary.singleLot;
+    const row={...lot,clave:txt(summary.clave),almacen:Math.max(0,num(lot.almacen)),estantes:Math.max(0,num(lot.estantes)),descripcion:txt(summary.descripcion)||txt(summary.clave)};
+    row.nombre=row.descripcion;row.existencia=row.almacen+row.estantes;
+    const k=ref(row);if(!existing.has(k)){existing.add(k);rows.push(row)}
+  }
+  // Solo productos realmente registrados en Inventario Principal, no todo el catálogo.
+  // Mostrar 0 en esta vista no implica borrar el producto ni cambiar ESTANTES.
   return rows;
 }
 async function analytics(force=false){
