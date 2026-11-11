@@ -2194,7 +2194,13 @@ async function allLotsRowsIncludingZero(force=false){
     const almacen=numericField(p,['almacen','almacén','alm','pzs_almacen','existenciaAlmacen','stockAlmacen']);
     const estantes=numericField(p,['estantes','est','pzs_estantes','existenciaEstantes','stockEstantes']);
     const total=numericField(p,['existencia','e','stock','total','cantidad']);
-    if(!inventoryId&&!lote&&!caducidad)continue;
+    // También conservar productos sin lote si la fuente de INVENTARIO confirma
+    // explícitamente existencia cero. No se crean lotes ni registros ficticios.
+    if(!inventoryId&&!lote&&!caducidad){
+      if(total!==0 && !(almacen===0&&estantes===0))continue;
+      // Si el producto ya está representado por sus lotes, evitar un resumen cero duplicado.
+      if(rows.some(r=>norm(r.clave)===norm(clave)))continue;
+    }
     // Si el emisor solo indica total positivo, no atribuir piezas a Almacén
     // o Estantes sin conocer su distribución.
     if(almacen===null&&estantes===null&&total!==0)continue;
