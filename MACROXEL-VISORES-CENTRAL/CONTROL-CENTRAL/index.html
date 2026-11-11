@@ -5495,8 +5495,8 @@ function bindButtons(){
  const back=$('mxModuleBackV103');if(back&&back.dataset.mxNavV111!=='1'){back.dataset.mxNavV111='1';back.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();goHome()},true)}
 }
 function init(){
- captureLegacy();bindButtons();bindFoldersV326();active=valid(hashModule())?hashModule():'';ready=true;enforce();announce();
- if(active){if(MAP[active].init)initNative(active);else callLegacy(active)}
+ // Cada apertura o recarga inicia en Módulos, incluso si la URL conservaba #transferencias.
+ captureLegacy();bindButtons();bindFoldersV326();active='';setHash('');ready=true;enforce();announce();
  window.addEventListener('hashchange',()=>{const k=hashModule();if(valid(k)&&k!==active)navigate(k,{load:true});else if(!valid(k)&&active)goHome({hash:false})});
  window.mxTransferStableNavigation={get active(){return active},get home(){return !valid(active)},open:k=>navigate(k,{load:true}),goHome,enforce};window.mxResumeSync=async(reason='manual')=>{const k=active;if(!valid(k))return true;try{if(k==='transfer')return await window.mxTransferBackgroundSync?.(false);if(k==='surtido')return await window.mxSurtidoResumeSync?.();if(k==='recipes')return await window.mxRecipesResumeSync?.();if(k==='analysis')return await window.mxAnalysisActivate?.(true);if(k==='antibiotics')return await window.mxTransferAntibioticsResumeSync?.();if(k==='authorizations')return await window.mxControlCentralViewerAuthResume?.();if(k==='adjust'){try{window.mxSharedInventoryHub?.invalidate?.()}catch(_e){}await window.mxSharedInventoryHub?.allLotsRows?.(true);await window.mxRefreshInventoryCountMetadataV10154?.().catch?.(()=>{});return true}if(k==='patients'){enforce();return true}return true}catch(_e){enforce();return false}};
 }
@@ -5879,6 +5879,6 @@ setInterval(applyAll,1200);setTimeout(applyAll,0);
 
 
 <script src="html5-qrcode.min.js?v=20261105b" defer></script>
-<script src="mx-transfer-scanner.js?v=20261110-v319-cero-conteo" defer></script>
+<script src="mx-transfer-scanner.js?v=20261111-v328-menu-qr" defer></script>
 </body>
 </html>
