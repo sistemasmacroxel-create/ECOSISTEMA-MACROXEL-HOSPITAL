@@ -264,9 +264,9 @@
         </div>
         <div class="form-divider"><span>Datos del producto</span></div>
         <div class="fields-grid">
-          <div class="field-group"><label for="lot-input">Lote</label><input id="lot-input" maxlength="70" placeholder="Ej. A25-042" autocomplete="off" /></div>
+          <div class="field-group"><label for="lot-input">Lote</label><input id="lot-input" maxlength="70" placeholder="Ej. A25-042" autocomplete="off" autocapitalize="characters" spellcheck="false" style="text-transform:uppercase" /></div>
           <div class="field-group"><label for="expiry-input">Caducidad</label><input id="expiry-input" maxlength="10" placeholder="MM/AAAA" autocomplete="off" inputmode="numeric" /></div>
-          <div class="field-group"><label for="units-input">Piezas</label><input id="units-input" type="number" min="0" max="999999" step="1" placeholder="Ej. 30" inputmode="numeric" /></div>
+          <div class="field-group"><label for="units-input">Piezas</label><input id="units-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" enterkeyhint="done" autocomplete="off" placeholder="Ej. 30" /></div>
           <div class="field-group"><label for="copies-input">Copias de etiqueta</label><input id="copies-input" type="number" min="1" max="100" step="1" value="1" inputmode="numeric" /></div>
         </div>
         <div class="form-actions"><button type="button" id="reset-form" class="btn btn-text">Limpiar campos</button><button type="button" id="add-btn" class="btn btn-primary btn-wide">＋ Generar etiqueta</button></div>
@@ -453,15 +453,22 @@ window.CPM_CATALOG = [{"id":"0022.00","full":"010.000.0022.00","name":"CASEINATO
   }
   // No precargar 0 ni cantidades antiguas: las piezas se capturan de nuevo en cada etiqueta.
   function focusDataField(field, requestId=null, productId=null){
+    if(requestId!==null&&(requestId!==lotsRequestId||selected?.id!==productId||editingId))return;
+    if(activeTab!=='editor'||!field)return;
+    // Enfocar inmediatamente: en dispositivos móviles el teclado virtual puede no
+    // aparecer si el foco se aplaza con requestAnimationFrame fuera del clic.
+    field.focus({preventScroll:true});
+    if(field===elements.units){
+      // Compatible con Chromium Android donde existe la API; otros navegadores
+      // usarán inputmode="numeric" al obtener foco.
+      try{navigator.virtualKeyboard?.show?.();}catch(_){/* La apertura depende del navegador. */}
+    }
     requestAnimationFrame(()=>{
-      if(requestId!==null&&(requestId!==lotsRequestId||selected?.id!==productId||editingId))return;
-      if(activeTab!=='editor'||!field)return;
-      field.scrollIntoView({block:'center',behavior:'smooth'});
-      field.focus({preventScroll:true});
+      if(document.activeElement===field)field.scrollIntoView({block:'center',behavior:'smooth'});
     });
   }
   function chooseInventoryLot(row){
-    elements.lot.value=String(row.lote||'');
+    elements.lot.value=String(row.lote||'').toLocaleUpperCase('es-MX');
     elements.expiry.value=formatInventoryCad(row.caducidad||row.cad||'');
     elements.expiry.dataset.dateStyle=elements.expiry.value.split('/').length===3?'full':'';
     elements.units.value='';
@@ -482,6 +489,17 @@ window.CPM_CATALOG = [{"id":"0022.00","full":"010.000.0022.00","name":"CASEINATO
     }
     return clean.slice(0,2)+(clean.length>2||clean.length===2&&!deleting?'/':'')+clean.slice(2,6);
   }
+  // La clave del lote siempre se escribe y se conserva en MAYÚSCULAS.
+  function normalizeLotUppercase(){
+    const field=elements.lot;
+    const raw=field.value, upper=raw.toLocaleUpperCase('es-MX');
+    if(raw===upper)return;
+    const start=field.selectionStart,end=field.selectionEnd;
+    field.value=upper;
+    try{if(start!==null&&end!==null)field.setSelectionRange(start,end);}catch(_){/* sin selección */}
+  }
+  elements.lot.addEventListener('input',ev=>{if(!ev.isComposing)normalizeLotUppercase();});
+  elements.lot.addEventListener('compositionend',normalizeLotUppercase);
   elements.expiry.addEventListener('input',ev=>{
     const field=elements.expiry,raw=field.value;
     if(!raw.trim()){field.dataset.dateStyle='';return;}
@@ -575,7 +593,7 @@ window.CPM_CATALOG = [{"id":"0022.00","full":"010.000.0022.00","name":"CASEINATO
       setFormMessage('La caducidad debe tener formato MM/AAAA o DD/MM/AAAA.'); elements.expiry.focus(); return null;
     }
     return {uid: editingId || ('label-' + Date.now() + '-' + Math.floor(Math.random()*1000000)),
-      id:selected.id, lot:elements.lot.value.trim(), expiry,
+      id:selected.id, lot:elements.lot.value.trim().toLocaleUpperCase('es-MX'), expiry,
       units:rawUnits, copies:rawCopies, desc:elements.desc.value.trim() || selected.desc};
   }
   function addLabel() {
@@ -645,7 +663,7 @@ window.CPM_CATALOG = [{"id":"0022.00","full":"010.000.0022.00","name":"CASEINATO
     editingId=l.uid;
     selectProduct(product,true);
     elements.desc.value=l.desc;
-    elements.lot.value=l.lot;
+    elements.lot.value=String(l.lot||'').toLocaleUpperCase('es-MX');
     elements.expiry.value=l.expiry;
     elements.expiry.dataset.dateStyle=l.expiry.split('/').length===3?'full':'';
     elements.units.value=l.units;
