@@ -5393,8 +5393,51 @@ function initNative(k,attempt=0){
 }
 function callLegacy(k){const fn=legacy[k],b=$(MAP[k]?.tab);if(typeof fn==='function')try{fn.call(b)}catch(e){console.warn('[MACROXEL] módulo',k,e)}}
 function announce(){try{window.dispatchEvent(new CustomEvent('mx-module-active-change',{detail:{active:valid(active)?active:'',home:!valid(active)}}))}catch(_e){}}
+
+/* Navegación por carpetas tipo móvil. No modifica el código de los módulos originales. */
+const FOLDERS_V326={
+ surtidos:{panel:'mxFolderSupplyV326',trigger:'mxFolderOpenSurtidosV326',title:'Surtidos',help:'Surtir colectivo · Surtir recetas'},
+ transferencias:{panel:'mxFolderTransferV326',trigger:'mxFolderOpenTransferV326',title:'Transferencias',help:'Transferencias · Surtido farmacia'}
+};
+let lastFolderTriggerV326=null;
+function closeFolderV326(restoreFocus=false){
+ const overlay=$('mxModuleFolderOverlayV326');if(!overlay)return;
+ overlay.hidden=true;overlay.setAttribute('aria-hidden','true');
+ for(const folder of Object.values(FOLDERS_V326))$(folder.panel)?.setAttribute('hidden','');
+ if(restoreFocus&&lastFolderTriggerV326&&!lastFolderTriggerV326.hidden)try{lastFolderTriggerV326.focus({preventScroll:true})}catch(_e){}
+}
+function openFolderV326(key){
+ const folder=FOLDERS_V326[key],overlay=$('mxModuleFolderOverlayV326');
+ if(!folder||!overlay||valid(active))return false;
+ lastFolderTriggerV326=$(folder.trigger);
+ for(const [name,entry] of Object.entries(FOLDERS_V326)){const el=$(entry.panel);if(el)el.hidden=name!==key}
+ $('mxFolderTitleV326').textContent=folder.title;
+ $('mxFolderHelpV326').textContent=folder.help;
+ overlay.hidden=false;overlay.setAttribute('aria-hidden','false');
+ $('mxFolderCloseV326')?.focus({preventScroll:true});
+ return true;
+}
+function bindFoldersV326(){
+ for(const [name,folder] of Object.entries(FOLDERS_V326)){
+  const trigger=$(folder.trigger);if(trigger)trigger.addEventListener('click',()=>openFolderV326(name));
+ }
+ $('mxFolderCloseV326')?.addEventListener('click',()=>closeFolderV326(true));
+ $('mxModuleFolderOverlayV326')?.addEventListener('click',e=>{if(e.target===e.currentTarget)closeFolderV326(true)});
+ document.addEventListener('keydown',e=>{
+  const overlay=$('mxModuleFolderOverlayV326');if(!overlay||overlay.hidden)return;
+  if(e.key==='Escape'){e.preventDefault();closeFolderV326(true)}
+  if(e.key==='Tab'){
+   const focusable=[...overlay.querySelectorAll('button:not([disabled])')].filter(b=>b.getClientRects().length);
+   if(!focusable.length)return;
+   const first=focusable[0],last=focusable[focusable.length-1];
+   if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}
+   else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}
+  }
+ },true);
+}
 function navigate(k,opts={}){
  if(!valid(k))return false;
+ closeFolderV326();
  const sameModule=active===k;
  active=k;setHash(k);enforce();announce();
  if(MAP[k].init)initNative(k);else if(opts.load!==false)callLegacy(k);
@@ -5406,7 +5449,7 @@ function navigate(k,opts={}){
     programaban tres restauraciones diferidas y podían pelear con el desplazamiento del usuario. */
  return true;
 }
-function goHome(opts={}){active='';if(opts.hash!==false)setHash('');enforce();announce();try{window.scrollTo({top:0,behavior:'instant'})}catch(_e){window.scrollTo(0,0)}}
+function goHome(opts={}){closeFolderV326();active='';if(opts.hash!==false)setHash('');enforce();announce();try{window.scrollTo({top:0,behavior:'instant'})}catch(_e){window.scrollTo(0,0)}}
 function captureLegacy(){
  for(const [k,m] of Object.entries(MAP)){const b=$(m.tab);if(!b)continue;legacy[k]=b.onclick;b.onclick=null}
  const oldT=window.mxViewerShowTransfer;window.mxViewerShowTransfer=function(){active='transfer';setHash(active);try{oldT?.()}catch(_e){}enforce()};
@@ -5421,7 +5464,7 @@ function bindButtons(){
  const back=$('mxModuleBackV103');if(back&&back.dataset.mxNavV111!=='1'){back.dataset.mxNavV111='1';back.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();goHome()},true)}
 }
 function init(){
- captureLegacy();bindButtons();active=valid(hashModule())?hashModule():'';ready=true;enforce();announce();
+ captureLegacy();bindButtons();bindFoldersV326();active=valid(hashModule())?hashModule():'';ready=true;enforce();announce();
  if(active){if(MAP[active].init)initNative(active);else callLegacy(active)}
  window.addEventListener('hashchange',()=>{const k=hashModule();if(valid(k)&&k!==active)navigate(k,{load:true});else if(!valid(k)&&active)goHome({hash:false})});
  window.mxTransferStableNavigation={get active(){return active},get home(){return !valid(active)},open:k=>navigate(k,{load:true}),goHome,enforce};window.mxResumeSync=async(reason='manual')=>{const k=active;if(!valid(k))return true;try{if(k==='transfer')return await window.mxTransferBackgroundSync?.(false);if(k==='surtido')return await window.mxSurtidoResumeSync?.();if(k==='recipes')return await window.mxRecipesResumeSync?.();if(k==='analysis')return await window.mxAnalysisActivate?.(true);if(k==='antibiotics')return await window.mxTransferAntibioticsResumeSync?.();if(k==='authorizations')return await window.mxControlCentralViewerAuthResume?.();if(k==='adjust'){try{window.mxSharedInventoryHub?.invalidate?.()}catch(_e){}await window.mxSharedInventoryHub?.allLotsRows?.(true);await window.mxRefreshInventoryCountMetadataV10154?.().catch?.(()=>{});return true}if(k==='patients'){enforce();return true}return true}catch(_e){enforce();return false}};
