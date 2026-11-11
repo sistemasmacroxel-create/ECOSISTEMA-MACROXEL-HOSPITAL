@@ -2111,15 +2111,28 @@ async function allLotsRows(force=false){
    Se incluyen lotes almacenados en Sistema Principal incluso con ALMACÉN=0 y ESTANTES=0.
    No se agregan productos que existan únicamente en el catálogo sin lote registrado. */
 async function allLotsRowsIncludingZero(force=false){
+  // Ajustar inventario consulta TRES fuentes del principal:
+  // lotes activos, historial de lotes y productos completos (incluye existencias cero).
+  // No convertir el catálogo CPM en inventario ni modificar Almacén/Estantes.
   const snapshot=await syncStocks(force);
   const raw=await window.mxCpmCache?.preloadLots?.(force);
   const root=raw&&typeof raw==='object'?raw:{};
-  const rows=parseAllLots(root,snapshot),existing=new Set(),zeroStockRows=window.mxCpmCache?.allStockRows?.()||[];
-  const ref=arr=>[norm(arr.clave),norm(arr.lote),norm(arr.caducidad),txt(arr.inventoryId)].join('|');
-  for(const r of rows)existing.add(ref(r));
+  const rows=parseAllLots(root,snapshot),zeroStockRows=window.mxCpmCache?.allStockRows?.()||[];
   let catalog=[];try{catalog=(await window.mxCpmCache?.syncCatalog?.(false))?.catalog||[]}catch(_e){}
   const refs=new Map();
-  for(const row of [...catalog,...(snapshot?.items||[]),...zeroStockRows])if(txt(row?.clave))refs.set(safeKey(row.clave),row);
+  for(const row of [...catalog,...(snapshot?.items||[]),...zeroStockRows]){
+    if(txt(row?.clave))refs.set(safeKey(row.clave),row);
+  }
+  const identity=r=>[norm(r.clave),norm(r.lote),norm(r.caducidad)].join('|');
+  const ids=new Set(),keys=new Set();
+  function addRow(r){
+    if(!r||!txt(r.clave))return false;
+    const id=txt(r.inventoryId),k=identity(r);
+    // Misma clave, lote y caducidad nunca se duplica aunque llegue por otra fuente.
+    if((id&&ids.has(id))||keys.has(k))return false;
+    keys.add(k);if(id)ids.add(id);rows.push(r);return true;
+  }
+  for(const row of rows){keys.add(identity(row));if(txt(row.inventoryId))ids.add(txt(row.inventoryId))}
   for(const [encoded,payload] of Object.entries(root)){
     if(!payload||!Array.isArray(payload.items))continue;
     let code=txt(refs.get(encoded)?.clave);
@@ -2130,24 +2143,73 @@ async function allLotsRowsIncludingZero(force=false){
     const meta=refs.get(encoded)||{},description=txt(meta.descripcion||meta.nombre||payload.descripcion||payload.d)||code;
     for(const a of payload.items){
       if(!Array.isArray(a))continue;
-      const row={inventoryId:txt(a[0]),clave:code,lote:txt(a[1]),caducidad:txt(a[2]),codigo_barras:txt(a[3]),almacen:Math.max(0,num(a[4])),estantes:Math.max(0,num(a[5])),unidad:txt(a[6]||meta.unidad),clasificacion:txt(a[7]||meta.clasificacion),restriccion:txt(a[8]||meta.restriccion),ubicacion:txt(a[9]),descripcion:description,nombre:description,seq:num(payload.v)};
-      row.existencia=row.almacen+row.estantes;
-      const k=ref(row);if(existing.has(k))continue;
-      existing.add(k);rows.push(row);
+      const r={inventoryId:txt(a[0]),clave:code,lote:txt(a[1]),caducidad:txt(a[2]),codigo_barras:txt(a[3]),almacen:Math.max(0,num(a[4])),estantes:Math.max(0,num(a[5])),unidad:txt(a[6]||meta.unidad),clasificacion:txt(a[7]||meta.clasificacion),restriccion:txt(a[8]||meta.restriccion),ubicacion:txt(a[9]),descripcion:description,nombre:description,seq:num(payload.v)};
+      r.existencia=r.almacen+r.estantes;addRow(r);
     }
   }
-  // Respaldo de un único lote: algunos sistemas guardan el registro con cantidad cero
-  // solo dentro del total de CPM, sin entrada individual en el árbol de lotes.
   for(const summary of zeroStockRows){
     if(!summary?.singleLot)continue;
     const lot=summary.singleLot;
-    const row={...lot,clave:txt(summary.clave),almacen:Math.max(0,num(lot.almacen)),estantes:Math.max(0,num(lot.estantes)),descripcion:txt(summary.descripcion)||txt(summary.clave)};
-    row.nombre=row.descripcion;row.existencia=row.almacen+row.estantes;
-    const k=ref(row),sameLot=rows.some(r=>norm(r.clave)===norm(row.clave)&&norm(r.lote)===norm(row.lote)&&norm(r.caducidad)===norm(row.caducidad));
-    if(!existing.has(k)&&!sameLot){existing.add(k);rows.push(row)}
+    const r={...lot,clave:txt(summary.clave),almacen:Math.max(0,num(lot.almacen)),estantes:Math.max(0,num(lot.estantes)),descripcion:txt(summary.descripcion)||txt(summary.clave)};
+    r.nombre=r.descripcion;r.existencia=r.almacen+r.estantes;
+    addRow(r);
   }
-  // Solo productos realmente registrados en Inventario Principal, no todo el catálogo.
-  // Mostrar 0 en esta vista no implica borrar el producto ni cambiar ESTANTES.
+
+  // Esta tercera fuente pertenece al INVENTARIO del Sistema Principal.
+  // Los resúmenes positivos no siempre conservan productos con Almacén=0 y Estantes=0.
+  // NO usar el catálogo como fuente de altas; preservar clave, lote e ID originales.
+  let full=null;
+  try{
+    const branch=txt(window.mxViewerGetCfg?.()?.branch||window.mxViewerGetCfg?.()?.systemId||'');
+    if(branch)full=await window.mxViewerFetchJson?.('/inventory_visor/'+encodeURIComponent(branch)+'/products');
+  }catch(_e){/* Sin conexión: conservar los datos de lotes ya recuperados. */}
+  const source=Array.isArray(full)?full:(Array.isArray(full?.items)?full.items:(full?.items&&typeof full.items==='object'?Object.values(full.items):(full&&typeof full==='object'?Object.values(full):[])));
+  const entries=[];
+  for(const product of source){
+    if(!product||typeof product!=='object'||Array.isArray(product))continue;
+    const nested=product.lotes??product.lots??product.registrosLotes??product.inventoryLots;
+    const details=Array.isArray(nested)?nested:(nested&&typeof nested==='object'?Object.values(nested):[]);
+    if(details.length){
+      for(const lot of details)if(lot&&typeof lot==='object'&&!Array.isArray(lot))entries.push({...product,...lot});
+    }else entries.push(product);
+  }
+  const numericField=(obj,names)=>{
+    for(const n of names){
+      const v=obj?.[n];
+      if(v===undefined||v===null||v==='')continue;
+      const k=Number(v);if(Number.isFinite(k))return Math.max(0,k);
+    }
+    return null;
+  };
+  for(const p of entries){
+    if(p.eliminado===true||p.deleted===true||p.baja===true||p.dadoDeBaja===true)continue;
+    const clave=txt(p.clave??p.c??p.codigo??p.csg??p.key);
+    if(!clave)continue;
+    const codigo=txt(p.codigo_barras??p.codigoBarras??p.barcode);
+    const lote=txt(p.lote??p.lot??p.lotNumber??p.numeroLote);
+    const caducidad=txt(p.caducidad??p.cad??p.fecha_caducidad??p.fechaCaducidad);
+    const inventoryId=txt(p.inventoryId??p._id??p.inventory_id??p.id);
+    // Únicamente registros del inventario, no un nombre de producto sin ID/lote
+    // ni evidencia de existencias. Los artículos sin lote son válidos si tienen ID.
+    const almacen=numericField(p,['almacen','almacén','alm','pzs_almacen','existenciaAlmacen','stockAlmacen']);
+    const estantes=numericField(p,['estantes','est','pzs_estantes','existenciaEstantes','stockEstantes']);
+    const total=numericField(p,['existencia','e','stock','total','cantidad']);
+    if(!inventoryId&&!lote&&!caducidad)continue;
+    // Si el emisor solo indica total positivo, no atribuir piezas a Almacén
+    // o Estantes sin conocer su distribución.
+    if(almacen===null&&estantes===null&&total!==0)continue;
+    const a=almacen===null?0:almacen,b=estantes===null?0:estantes;
+    // No reemplazar registros canónicos por resúmenes sin detalle.
+    const r={inventoryId,clave,lote,caducidad,codigo_barras:codigo,almacen:a,estantes:b,
+      existencia:a+b,unidad:txt(p.unidad??p.presentacion),
+      clasificacion:txt(p.clasificacion),restriccion:txt(p.restriccion),
+      departamento:txt(p.departamento),ubicacion:txt(p.ubicacion??p.ubicación),
+      descripcion:txt(p.descripcion??p.nombre??p.description??p.producto)||clave};
+    r.nombre=r.descripcion;
+    addRow(r);
+  }
+  // Los ceros se visualizan; ninguna cantidad cambia hasta capturar y
+  // finalizar voluntariamente el conteo con validación del Sistema Principal.
   return rows;
 }
 async function analytics(force=false){
