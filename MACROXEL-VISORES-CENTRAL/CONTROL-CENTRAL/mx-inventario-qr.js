@@ -43,7 +43,6 @@ async function cancelInventory(){
  if(!window.confirm(message))return;
  await stop();count.clear();stock=[];unclassified=0;stockVerified=false;last='';lastAt=0;processing=false;
  try{localStorage.removeItem(storage);localStorage.removeItem(pendingStorage)}catch(_){}
- const input=$('mxInvQrManual');if(input)input.value='';
  $('mxInvQrCamera').textContent='📷 Activar cámara';closeFinal();table();
  notify('Inventario QR cancelado sin cambios en el Sistema Principal.');root.hidden=true;
 }
@@ -84,6 +83,8 @@ function table(){
  $('mxInvQrRows').innerHTML=rows.slice(-120).reverse().map(([id,r])=>'<tr><td>'+escape(r.clave)+'</td><td>'+escape(r.lote)+'</td><td>'+escape(r.caducidad)+'</td><td><input data-mx-qty="'+escape(id)+'" type="number" min="0" step="1" value="'+r.contado+'" style="width:75px"></td><td><button type="button" data-mx-remove="'+escape(id)+'" aria-label="Quitar lote del conteo" style="background:#aa2e32;color:#fff">Eliminar</button></td></tr>').join('')||'<tr><td colspan="5">Sin escaneos</td></tr>';
  $('mxInvQrMissing').textContent=count.size?'Sin escanear en ALMACÉN: '+missing.length+' lotes. Excluidos por Estantes o ubicación no confirmada: '+unclassified+'. Ninguno se pondrá en cero sin confirmación.':'No hay conteo activo. Escanea un QR para iniciar un inventario nuevo.';
   const pending=getPending(),resend=$('mxInvQrSendPending');if(resend)resend.hidden=!pending||!!pending.sent;
+  // Solo mostrar Cancelar inventario cuando existan lotes escaneados o un borrador pendiente.
+  const cancelBtn=$('mxInvQrCancelInventory');if(cancelBtn)cancelBtn.hidden=!(count.size>0||!!pending?.request?.items?.length);
 }
 async function register(raw){
  if(sending||finishing||getPending())return notify('Hay un conteo pendiente. Envíalo o cancélalo antes de escanear más.');
@@ -171,7 +172,6 @@ async function resetAfterConfirmedSend(req){
  // Nunca borrar si no se comprobó la recepción del mismo folio remoto.
  await stop();count.clear();stock=[];unclassified=0;stockVerified=false;reviewSignature='';last='';lastAt=0;processing=false;
  try{localStorage.removeItem(storage);localStorage.removeItem(pendingStorage)}catch(_){}
- const input=$('mxInvQrManual');if(input)input.value='';
  $('mxInvQrCamera').textContent='📷 Activar cámara';closeFinal();table();
  notify('✓ Conteo '+req.id+' ENVIADO, recibido y registros locales LIMPIADOS. Actualizando inventario para un conteo nuevo…');
  try{await loadStock()}catch(_e){}
@@ -213,20 +213,18 @@ async function end(mode){
  if(saved)await sendPending();
 }
 function open(){
- root=$('mxInvQrOverlay');root.hidden=false;
+ root=$('mxInvQrOverlay');root.hidden=false;table();
   const oldPending=getPending();if(oldPending?.sent){void resetAfterConfirmedSend(oldPending.request);return;}
  loadStock().then(()=>{table();notify('Conteo listo: los lotes en cero pueden registrarse. Estantes permanece intacto.');}).catch(e=>{table();notify('Conteo local disponible sin conexión. '+(e?.message||e));});
 }
 function init(){
- const style=document.createElement('style');style.textContent='#mxInvQrFlash{position:fixed;inset:0;z-index:2147483600;background:rgba(41,220,125,.55);opacity:0;pointer-events:none}#mxInvQrFlash.mx-inv-flash-on{animation:mxInvQrFlash .45s ease-out forwards}@keyframes mxInvQrFlash{0%{opacity:0}20%{opacity:1}100%{opacity:0}}#mxInvQrCancelInventory{background:#ad3333!important}'+'#mxInvQrOverlay[hidden],#mxInvQrFinal[hidden]{display:none!important}#mxInvQrOverlay{position:fixed;inset:0;z-index:2147483000;background:#102b38eb;padding:14px;overflow:auto}#mxInvQrPanel{background:#fff;color:#173846;border-radius:15px;max-width:700px;margin:auto;padding:18px}#mxInvQrPanel button{padding:10px 14px;border-radius:8px;border:0;background:#0c5363;color:white;font-weight:700;cursor:pointer;margin:3px}#mxInvQrRows td,#mxInvQrPanel th{border-bottom:1px solid #dbe5e8;padding:6px;text-align:left}#mxInvQrFinal{border:2px solid #ad6a19;padding:15px;background:#fff9e8;border-radius:12px;margin-top:12px}#mxInvQrReader{max-width:430px;margin:auto}';document.head.appendChild(style);
+ const style=document.createElement('style');style.textContent='#mxInvQrFlash{position:fixed;inset:0;z-index:2147483600;background:rgba(41,220,125,.55);opacity:0;pointer-events:none}#mxInvQrFlash.mx-inv-flash-on{animation:mxInvQrFlash .45s ease-out forwards}@keyframes mxInvQrFlash{0%{opacity:0}20%{opacity:1}100%{opacity:0}}#mxInvQrCancelInventory{background:#ad3333!important}#mxInvQrCancelInventory[hidden]{display:none!important}'+'#mxInvQrOverlay[hidden],#mxInvQrFinal[hidden]{display:none!important}#mxInvQrOverlay{position:fixed;inset:0;z-index:2147483000;background:#102b38eb;padding:14px;overflow:auto}#mxInvQrPanel{background:#fff;color:#173846;border-radius:15px;max-width:700px;margin:auto;padding:18px}#mxInvQrPanel button{padding:10px 14px;border-radius:8px;border:0;background:#0c5363;color:white;font-weight:700;cursor:pointer;margin:3px}#mxInvQrRows td,#mxInvQrPanel th{border-bottom:1px solid #dbe5e8;padding:6px;text-align:left}#mxInvQrFinal{border:2px solid #ad6a19;padding:15px;background:#fff9e8;border-radius:12px;margin-top:12px}#mxInvQrReader{max-width:430px;margin:auto}';document.head.appendChild(style);
  root=document.createElement('div');root.id='mxInvQrOverlay';root.hidden=true;
- root.innerHTML='<div id="mxInvQrFlash" aria-hidden="true"></div><div id="mxInvQrPanel"><h2>📦 Inventario QR · Almacén</h2><p>Conteo independiente. Nada se elimina automáticamente.</p><button id="mxInvQrCamera">📷 Activar cámara</button><button id="mxInvQrClose">Cerrar</button><button id="mxInvQrCancelInventory" type="button">Cancelar inventario</button><div id="mxInvQrReader"></div><p><input id="mxInvQrManual" placeholder="Pega QR MXCPM1|..." style="width:75%;padding:10px"><button id="mxInvQrAdd">Agregar</button></p><p id="mxInvQrStatus" role="status"></p><strong id="mxInvQrSummary"></strong><div style="max-height:35vh;overflow:auto"><table style="width:100%;border-collapse:collapse"><thead><tr><th>Clave</th><th>Lote</th><th>Caducidad</th><th>Contadas</th><th>Acción</th></tr></thead><tbody id="mxInvQrRows"></tbody></table></div><p id="mxInvQrMissing"></p><button id="mxInvQrFinish">Finalizar conteo</button><button id="mxInvQrSendPending" type="button">📤 Enviar conteo guardado</button><div id="mxInvQrFinal" hidden><h3>Productos no escaneados</h3><p id="mxInvQrFinalSummary"></p><button id="mxInvQrKeep">✅ CONSERVAR cantidades</button><button id="mxInvQrDelete">⚠️ PONER EN CERO (ALMACÉN)</button><button id="mxInvQrCancel">Volver sin enviar</button><p id="mxInvQrFinalNote"></p><p>Elige una opción para enviar. Tras confirmarse su recepción, se limpia el conteo local. La aplicación de ajustes requiere VALIDACIÓN del Sistema Principal.</p></div></div>';
+ root.innerHTML='<div id="mxInvQrFlash" aria-hidden="true"></div><div id="mxInvQrPanel"><h2>📦 Inventario QR · Almacén</h2><p>Conteo independiente. Nada se elimina automáticamente.</p><button id="mxInvQrCamera">📷 Activar cámara</button><button id="mxInvQrClose">Cerrar</button><button id="mxInvQrCancelInventory" type="button" hidden>Cancelar inventario</button><div id="mxInvQrReader"></div><p id="mxInvQrStatus" role="status"></p><strong id="mxInvQrSummary"></strong><div style="max-height:35vh;overflow:auto"><table style="width:100%;border-collapse:collapse"><thead><tr><th>Clave</th><th>Lote</th><th>Caducidad</th><th>Contadas</th><th>Acción</th></tr></thead><tbody id="mxInvQrRows"></tbody></table></div><p id="mxInvQrMissing"></p><button id="mxInvQrFinish">Finalizar conteo</button><button id="mxInvQrSendPending" type="button">📤 Enviar conteo guardado</button><div id="mxInvQrFinal" hidden><h3>Productos no escaneados</h3><p id="mxInvQrFinalSummary"></p><button id="mxInvQrKeep">✅ CONSERVAR cantidades</button><button id="mxInvQrDelete">⚠️ PONER EN CERO (ALMACÉN)</button><button id="mxInvQrCancel">Volver sin enviar</button><p id="mxInvQrFinalNote"></p><p>Elige una opción para enviar. Tras confirmarse su recepción, se limpia el conteo local. La aplicación de ajustes requiere VALIDACIÓN del Sistema Principal.</p></div></div>';
  document.body.appendChild(root);restore();
  $('mxInvQrCamera').onclick=()=>void camera();
  $('mxInvQrClose').onclick=()=>{void stop();root.hidden=true;};
  $('mxInvQrCancelInventory').onclick=()=>void cancelInventory();
- $('mxInvQrAdd').onclick=()=>{void register($('mxInvQrManual').value);$('mxInvQrManual').value='';};
- $('mxInvQrManual').onkeydown=e=>{if(e.key==='Enter')$('mxInvQrAdd').click();};
  $('mxInvQrSendPending').onclick=()=>void sendPending();
  $('mxInvQrFinish').onclick=finalize;$('mxInvQrKeep').onclick=()=>end('conservar');$('mxInvQrDelete').onclick=()=>end('eliminar');$('mxInvQrCancel').onclick=closeFinal;
  $('mxInvQrRows').addEventListener('click',e=>{
