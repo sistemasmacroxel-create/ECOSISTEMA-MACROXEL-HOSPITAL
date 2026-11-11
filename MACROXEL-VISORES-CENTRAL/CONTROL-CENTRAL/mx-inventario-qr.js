@@ -61,8 +61,11 @@ function restore(){try{count=new Map(JSON.parse(localStorage.getItem(storage)||'
 async function loadStock(){
  const hub=window.mxSharedInventoryHub;
  if(!hub){stockVerified=false;stock=[];return stock}
- let items=hub.localStocks?.()?.items;
- if(!Array.isArray(items)||!items.length)try{items=await hub.allLotsRows?.(false)}catch(_e){}
+ let items=null;
+ // La fotografía de todos los lotes incluye los que tienen ALMACEN=0;
+ // las cachés de solo existencias positivas no sirven para iniciar desde cero.
+ try{items=await hub.allLotsRows?.(false)}catch(_e){}
+ if(!Array.isArray(items)||!items.length)items=hub.localStocks?.()?.items;
  if(!Array.isArray(items)){stockVerified=false;stock=[];return stock}
  const classified=items.map(toRow);
  unclassified=classified.filter(r=>r===null).length;
@@ -172,7 +175,7 @@ async function end(mode){
  if(mode!=='conservar'&&mode!=='eliminar')return;
  if(!count.size)return notify('No hay productos contados para guardar.');
  if(mode==='eliminar'&&!stockVerified)return notify('La baja requiere existencias ALMACEN verificadas. Puedes conservar y enviar todas las piezas escaneadas.');
- const pending=getPending();if(pending&&!pending.sent)return notify('Ya existe un conteo local pendiente. Envía ese conteo primero para evitar mezclar ajustes.');
+ const pending=getPending();if(pending?.sent)return notify('Este conteo ya fue enviado y está pendiente de validación. Para comenzar otro inventario utiliza Cancelar inventario.');if(pending&&!pending.sent)return notify('Ya existe un conteo local pendiente. Envía ese conteo primero para evitar mezclar ajustes.');
  try{
   const request=await buildRequest(mode);
   if(!setPending({request,sent:false}))return;
