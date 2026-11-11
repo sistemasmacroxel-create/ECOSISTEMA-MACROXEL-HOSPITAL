@@ -1105,7 +1105,7 @@ body.mx-auth-blue-flash-v167::after{content:"";position:fixed;inset:0;z-index:21
 </section>
 <section class="mx-hidden" id="etiquetasView" aria-label="Generador de etiquetas CPM">
 <div class="card" style="padding:0;overflow:hidden;border-radius:14px">
-<iframe id="mxEtiquetasFrame" title="Macroxel: Generador de etiquetas CPM" src="etiquetas.html?v=20261106n-altas-locales" loading="lazy" style="width:100%;height:calc(100dvh - 155px);min-height:750px;border:0;display:block;background:#f2f6f7" allow="clipboard-write"></iframe>
+<iframe id="mxEtiquetasFrame" title="Macroxel: Generador de etiquetas CPM" src="etiquetas.html?v=20261111-v329-buscador-etiquetas" loading="lazy" style="width:100%;height:calc(100dvh - 155px);min-height:750px;border:0;display:block;background:#f2f6f7" allow="clipboard-write"></iframe>
 </div></section>
 <section class="mx-hidden" id="transferView">
 <div class="card transfer-card">
@@ -3929,7 +3929,6 @@ async function submitFinalize(){
 }
 async function syncCurrentSession(){if(state.syncBusy)return;const sent=[...state.progress.entries()].filter(([,v])=>txt(v?.status).toLowerCase()==='sent'&&v.requestId);if(!sent.length)return;state.syncBusy=true;let dirty=false;try{const br=await exactBranch(false),byRequest=new Map();for(const pair of sent){const id=txt(pair[1].requestId);if(!byRequest.has(id))byRequest.set(id,[]);byRequest.get(id).push(pair)}for(const[requestId,pairs]of byRequest){const resp=await get?.('/inventory_count_responses/'+encodeURIComponent(br)+'/'+encodeURIComponent(requestId)).catch(()=>null),st=txt(resp?.status).toLowerCase();if(!st)continue;if(st==='applied'){const items=Array.isArray(resp.items)?resp.items:[];for(const[k,rec]of pairs){const r=state.rowByKey.get(k),item=items.find(x=>(txt(rec.inventoryId)&&txt(x.inventoryId)===txt(rec.inventoryId))||(norm(x.clave)===norm(rec.clave)&&norm(x.lote)===norm(rec.lote)&&norm(x.caducidad)===norm(rec.caducidad)))||null;state.progress.set(k,{...rec,status:'applied',appliedAt:resp.appliedAt||resp.updatedAt||new Date().toISOString(),folio:resp.folio||'',finalEstantes:item?num(item.estantesDespues):num(rec.physicalEstantes),finalAlmacen:item?num(item.almacenDespues):num(rec.physicalAlmacen)});if(r&&item){r.almacen=num(item.almacenDespues);r.estantes=num(item.estantesDespues)}dirty=true}}else if(st==='rejected'){for(const[k,rec]of pairs){state.progress.set(k,{...rec,status:'captured',requestId:'',rejectedAt:resp.rejectedAt||resp.updatedAt||new Date().toISOString(),rejection:resp.message||'El Principal rechazó el ajuste.'});dirty=true}}}if(dirty){saveSession();state.revision++;state.filterToken='';render();try{window.mxSharedInventoryHub?.invalidate?.();await window.mxSharedInventoryHub?.syncStocks?.(true)}catch(_e){}}}finally{state.syncBusy=false}}
 function acceptPayload(br,payload){if(!payload||!Array.isArray(payload.items))return false;const rows=parseRows(payload),sig=JSON.stringify(rows.map(r=>[rowKey(r),r.clave,r.descripcion,r.lote,r.caducidad,r.codigo_barras,r.almacen,r.estantes,r.unidad,r.clasificacion,r.restriccion,r.departamento,r.ubicacion]));const branchChanged=state.branch&&state.branch!==br;state.lastLoadedAt=Date.now();state.snapshotAt=txt(payload?.meta?.updatedAtText||payload?.meta?.updatedAt)||state.snapshotAt||new Date().toISOString();if(!branchChanged&&state.payloadSig===sig){status('');return false;}state.payloadSig=sig;state.rows=rows;state.branch=br;
-try{localStorage.setItem('mxLabelsWarehouseSnapshotV1',JSON.stringify({branch:br,rows:rows,at:Date.now()}))}catch(_e){}
 mxLabelRestoreNewRows();state.page=Math.max(1,state.page||1);rebuildIndexes();if(branchChanged||(!state.modeChosen&&!state.sessionId))restoreActiveSelection();const visible=$('transferAdjustView')&&!$('transferAdjustView').classList.contains('mx-hidden');if(visible)render();status('');return true}
 async function canonicalInventoryPayload(force=false){const br=await exactBranch(false),hub=window.mxSharedInventoryHub;if(!hub?.allLotsRows)throw new Error('Inventario compartido no disponible.');const rows=await (typeof hub.allLotsRowsIncludingZero==='function'?hub.allLotsRowsIncludingZero(force):hub.allLotsRows(force));return{br,payload:{items:Array.isArray(rows)?rows:[],meta:{updatedAt:new Date().toISOString(),updatedAtText:'Inventario Principal · fuente única, incluye Almacén en cero'}}}}
 async function refreshInBackground(force=false){if(state.refreshing)return false;state.refreshing=true;try{const x=await canonicalInventoryPayload(force);return acceptPayload(x.br,x.payload)}catch(_e){return false}finally{state.refreshing=false}}
@@ -3967,167 +3966,6 @@ function mxLabelExpiry(value){
  if(!y){hit=v.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);if(hit){d=hit[1];m=hit[2];y=hit[3]}}
  return y&&Number(m)>=1&&Number(m)<=12?{month:y+'-'+String(Number(m)).padStart(2,'0'),day:d?String(Number(d)).padStart(2,'0'):''}:{month:norm(v),day:''};
 }
-function mxLabelFindStockRow(label){
- const digits=mxLabelDigits(label.clave);
- if(!digits)return{error:'Etiqueta sin clave CPM'};
- const matchesByCode=state.rows.filter(r=>{
-  const code=mxLabelDigits(r.clave);
-  if(!code)return false;
-  if(code===digits)return true;
-  // El catálogo de Etiquetas utiliza CPM completo (ej. 010.000.0570.00);
-  // el inventario principal puede guardar la clave corta (0570.00).
-  // Conciliar últimos 6 dígitos solo cuando UNO de los dos formatos es corto.
-  if(code.length>=6&&digits.length>=6&&(code.length===6||digits.length===6)){
-    return code.slice(-6)===digits.slice(-6);
-  }
-  return false;
- });
- const withLot=matchesByCode.filter(r=>norm(r.lote)===norm(label.lote));
- const lExp=mxLabelExpiry(label.caducidad);
- const candidates=withLot.filter(r=>{
-  if(!lExp.month)return !txt(r.caducidad);
-  const exp=mxLabelExpiry(r.caducidad);
-  if(exp.month!==lExp.month)return false;
-  return !lExp.day||!exp.day||lExp.day===exp.day;
- });
- if(candidates.length===1)return{row:candidates[0]};
- const reason=candidates.length>1?'Hay más de un registro con la misma clave, lote y caducidad':'No existe una coincidencia exacta en el inventario principal';
- return{error:reason};
-}
-// Canal verificado para Etiquetas en iframe de otro origen (GitHub Pages).
-window.addEventListener('message',async event=>{
- const data=event?.data;
- if(!data||data.channel!=='MACROXEL_LABELS_WAREHOUSE_V1'||data.type!=='stage')return;
- const frame=$('mxEtiquetasFrame');
- if(!frame?.contentWindow||event.source!==frame.contentWindow)return;
- const expectedOrigin=(()=>{try{return new URL(frame.getAttribute('src'),document.baseURI).origin}catch(_e){return''}})();
- if(!expectedOrigin||event.origin!==expectedOrigin)return;
- const requestId=txt(data.requestId);
- if(!/^mx_labels_[0-9]+_[a-z0-9]+$/.test(requestId))return;
- const reply=(type,message)=>{try{event.source.postMessage({channel:'MACROXEL_LABELS_WAREHOUSE_V1',type,requestId,message},event.origin)}catch(_e){}};
- if(!Array.isArray(data.items)||data.items.length<1||data.items.length>500){
-  reply('error','La lista de etiquetas está vacía o excede el máximo de 500.');return;
- }
- try{await window.mxInventoryCountStageFromLabels(data.items);reply('accepted','Revisa el conteo preparado de Almacén.')}
- catch(error){reply('error',txt(error?.message||error)||'No se pudo preparar el conteo.')}
-});
-window.mxInventoryCountStageFromLabels=async function(labels){
- if(!Array.isArray(labels)||labels.length<1)throw new Error('No hay etiquetas preparadas.');
- if(labels.length>500)throw new Error('El máximo de registros por importación es 500.');
- // Usar la última fotografía local: no exigir conexión mientras se cuentan cajas.
- if(!state.rows.length){
-  try{
-   const cache=JSON.parse(localStorage.getItem('mxLabelsWarehouseSnapshotV1')||'null');
-   if(cache?.rows?.length){state.rows=cache.rows.map(parseObjectRow);state.branch=txt(cache.branch)||state.branch;rebuildIndexes()}
-  }catch(_e){}
- }
- if(!state.rows.length){
-  try{const latest=await canonicalInventoryPayload(true);acceptPayload(latest.br,latest.payload)}catch(_e){}
- }
- if(!state.rows.length)throw new Error('No hay fotografía local del inventario. Abre Control Central una vez con conexión antes de contar sin señal.');
- try{await show()}catch(_e){render()}
- // Los registros capturados se compararán otra vez en el Principal al finalizar.
- state.mode='almacen';state.modeChosen=true;state.modePanelOpen=false;
- state.selectedLocation='';state.page=1;state.rowStatusFilter='all';state.filterToken='';
- loadSession();render();
- if([...state.progress.values()].some(r=>['sent','applied'].includes(txt(r?.status).toLowerCase())))
-  throw new Error('Hay ajustes pendientes de validación del Principal. Finaliza ese proceso antes de importar etiquetas.');
- const proposed=new Map(),errors=[];
- for(const l of labels){
-  const q=txt(l?.piezas);
-  const name=txt(l?.clave)+' · '+(txt(l?.lote)||'SIN LOTE')+' · '+(txt(l?.caducidad)||'SIN CADUCIDAD');
-  if(!/^\d+$/.test(q)||!Number.isSafeInteger(Number(q))||Number(q)>999999){
-   errors.push(name+': cantidad física inválida o sin capturar');continue;
-  }
-  const result=mxLabelFindStockRow(l);
-  if(!result.row&&result.error!=='No existe una coincidencia exacta en el inventario principal'){
-   errors.push(name+': '+result.error);continue;
-  }
-  const isNew=!result.row;
-  const row=result.row||{
-   inventoryId:'',clave:txt(l.clave),descripcion:txt(l.descripcion||l.nombre||l.clave),
-   lote:txt(l.lote),caducidad:txt(l.caducidad),codigo_barras:'',
-   almacen:0,estantes:0,unidad:txt(l.unidad||''),clasificacion:'',restriccion:'',departamento:'',ubicacion:'',mxPendingNew:true
-  };
-  const k=rowKey(row);
-  const current=proposed.get(k);
-  if(current){if(current.physical+Number(q)>999999){errors.push(name+': máximo de piezas excedido');continue}current.physical+=Number(q)}
-  else proposed.set(k,{row,physical:Number(q),isNew});
- }
- if(errors.length){
-  throw new Error('Se encontraron '+errors.length+' etiqueta(s) que requieren revisión. NO se marcará nada en cero.\n'+errors.slice(0,7).join('\n')+(errors.length>7?'\n…':''));
- }
- const zeros=state.rows.filter(r=>!r.mxPendingNew&&int(r.almacen)>0&&!proposed.has(rowKey(r)));
- const currentProgress=state.progress.size;
- const currentSignature=state.payloadSig;
- const staged=[...proposed.values()];
- const newQty=staged.filter(x=>x.isNew).length;
- const existingQty=staged.reduce((n,x)=>n+int(x.row.almacen),0);
- const physicalQty=staged.reduce((n,x)=>n+x.physical,0);
- const zeroQty=zeros.reduce((n,r)=>n+int(r.almacen),0);
- let modal=$('mxLabelsWarehouseReview');
- if(modal)modal.remove();
- modal=document.createElement('div');modal.id='mxLabelsWarehouseReview';
- modal.style.cssText='position:fixed;inset:0;z-index:2147483600;background:#0c2634da;overflow:auto;padding:16px;display:flex;align-items:flex-start;justify-content:center';
- const sample=staged.slice(0,15).map(x=>'<tr><td>'+esc(x.row.clave)+'</td><td>'+esc(x.row.lote||'—')+'</td><td>'+esc(x.row.caducidad||'—')+'</td><td>'+int(x.row.almacen)+'</td><td><b>'+x.physical+'</b></td></tr>').join('');
- modal.innerHTML='<div role="dialog" aria-modal="true" aria-labelledby="mxLblInvTitle" style="background:#fff;color:#163744;width:min(700px,100%);margin:3vh 0;border-radius:16px;padding:20px;box-shadow:0 12px 45px #05111d80">'+
- '<h2 id="mxLblInvTitle" style="margin:0 0 12px">📦 Preparar conteo de Almacén desde Etiquetas</h2>'+
- '<p><b>'+staged.length+' lotes</b> de Etiquetas identificados · <b>'+newQty+' altas nuevas pendientes</b> · Existencia actual de Almacén en esos lotes: <b>'+existingQty+'</b> pzs · Conteo capturado: <b>'+physicalQty+'</b> pzs.</p>'+
- '<p style="margin:9px 0"><b>'+zeros.length+' lotes</b> de Almacén no aparecen en las etiquetas (suman <b>'+zeroQty+'</b> piezas existentes).</p>'+
- '<p style="margin:10px 0;color:#9c4c13"><b>Verifica las piezas:</b> algunas etiquetas anteriores pudieron tomar Almacén + Estantes como cantidad sugerida. Las copias para impresión nunca cuentan como piezas.</p>'+
- '<div style="overflow:auto;max-height:220px;border:1px solid #e4edef;border-radius:10px"><table style="width:100%;font-size:12px;border-collapse:collapse"><thead><tr><th>Clave</th><th>Lote</th><th>Caducidad</th><th>Almacén sistema</th><th>Físico</th></tr></thead><tbody>'+sample+'</tbody></table></div>'+
- '<label style="display:block;margin:14px 0;padding:12px;background:#fff5e7;border-radius:10px"><input type="checkbox" id="mxLblInvZero"> <b>Poner en CERO los '+zeros.length+' lotes de Almacén no registrados en las etiquetas</b><small style="display:block;margin-top:7px">Esta opción es SOLO para un inventario físico COMPLETO. Si preparaste unas cuantas etiquetas, deja esta casilla SIN marcar: todos los demás lotes conservarán sus existencias. Estantes no se modifica.</small></label>'+
- '<label id="mxLblInvConfirmBox" style="display:none;margin-bottom:14px">Solo si vas a poner en cero los no registrados, escribe <b>ALMACEN</b>:<input id="mxLblInvConfirm" autocomplete="off" style="display:block;padding:10px;margin-top:5px;border:1px solid #9caeb8;border-radius:8px;width:100%" placeholder="ALMACEN"></label>'+
- (currentProgress?'<p style="color:#a43b30">Advertencia: este conteo de Almacén ya tiene '+currentProgress+' registros en progreso; al continuar se reemplazarán los registros locales de esa sesión (nunca Estantes).</p>':'')+
- '<p style="font-size:12px;color:#506a77">Esta acción NO modifica todavía las existencias: crea el conteo para revisar y finalizar. La aplicación real requiere validación autorizada en el Sistema Principal.</p>'+
- '<div style="display:flex;flex-wrap:wrap;justify-content:flex-end;gap:9px;margin-top:14px"><button id="mxLblInvBack" type="button" style="padding:12px;border:1px solid #9fadb4;border-radius:9px;background:white">Volver sin cambiar</button><button id="mxLblInvStage" type="button" style="padding:12px;border:0;border-radius:9px;background:#075c6a;color:white;font-weight:800">Preparar ajuste de Almacén</button></div></div>';
- document.body.appendChild(modal);
- $('mxLblInvZero').addEventListener('change',()=>{
-   $('mxLblInvConfirmBox').style.display=$('mxLblInvZero').checked?'block':'none';
- });
- const close=()=>{modal.remove()};
- $('mxLblInvBack').onclick=close;
- $('mxLblInvStage').onclick=()=>{
-  const withZero=$('mxLblInvZero').checked;
-  if(withZero&&zeros.length&&norm($('mxLblInvConfirm').value)!=='ALMACEN'){
-   alert('Para poner en cero los lotes no encontrados, escribe ALMACEN.');$('mxLblInvConfirm').focus();return;
-  }
-  if(currentSignature!==state.payloadSig){alert('El inventario principal cambió durante la revisión. Vuelve a importar para evitar diferencias desactualizadas.');close();return}
-  if(state.progress.size&& !confirm('¿Reemplazar el conteo local de Almacén en curso por el conteo preparado desde Etiquetas?'))return;
-  state.progress.clear();state.mode='almacen';state.modeChosen=true;state.modePanelOpen=false;
-  state.selectedLocation='';state.sessionId='count_labels_'+Date.now();state.startedAt=new Date().toISOString();
-  const now=Date.now();
-  const store=(r,physical,fromLabels)=>{
-   const expectedAlmacen=int(r.almacen),expectedEstantes=int(r.estantes),changed=physical!==expectedAlmacen;
-   state.progress.set(rowKey(r),{
-    physicalAlmacen:physical,physicalEstantes:expectedEstantes,
-    expectedAlmacen,expectedEstantes,
-    countedAt:new Date(now).toISOString(),countedAtMs:now,sessionId:state.sessionId,
-    mode:'almacen',ubicacion:'',clave:r.clave,lote:r.lote,caducidad:r.caducidad,
-    status:changed?'captured':'reviewed',requestId:'',error:'',
-    source:fromLabels?'ETIQUETAS_ALMACEN':'ETIQUETAS_NO_ENCONTRADO_CERO'
-   });
-  };
-  for(const item of staged){
-   if(item.isNew){
-    if(!state.rows.some(r=>rowKey(r)===rowKey(item.row)))state.rows.push(item.row);
-   }
-   store(item.row,item.physical,true);
-   if(item.isNew){
-    const key=rowKey(item.row),rec=state.progress.get(key);
-    state.progress.set(key,{...rec,newProductRow:{...item.row},newProduct:true,source:'ETIQUETAS_ALTA_LOCAL_PENDIENTE'});
-   }
-  }
-  rebuildIndexes();
-  if(withZero)for(const r of zeros)store(r,0,false);
-  saveSession();state.revision++;state.filterToken='';state.rowStatusFilter='all';state.page=1;
-  // Mostrar primero los lotes importados (incluidos ceros), no los pendientes sin contar.
-  state.rowStatusFilter='green';state.page=1;state.filterToken='';
-  render();close();scrollAdjustListIntoView(80);
-  status('✅ Conteo de Almacén preparado desde '+staged.length+' lotes de Etiquetas. '+(withZero?zeros.length+' lotes no encontrados quedaron propuestos en cero.':'Los no encontrados conservarán sus existencias.')+' Estantes no se modificará. Revisa y presiona Finalizar para enviar al Principal.','ok');
- };
-};
-
 function init(){build();const tab=$('tabTransferAdjust');if(tab)tab.onclick=show;window.mxOpenInventoryCountModule=show;window.addEventListener('online',()=>{if(!$('transferAdjustView')?.classList.contains('mx-hidden')){setTimeout(()=>refreshInBackground(false).catch(()=>{}),220);setTimeout(()=>syncCurrentSession().catch(()=>{}),420)}});window.addEventListener('mx-shared-inventory-updated',e=>{if(e?.detail?.source!=='principal'||$('transferAdjustView')?.classList.contains('mx-hidden'))return;if(document.activeElement?.matches?.('[data-ic-count]'))return;setTimeout(()=>refreshInBackground(false).catch(()=>{}),90)});window.addEventListener('mx-viewer-config-changed',()=>{state.rows=[];state.payloadSig='';state.rowByKey.clear();state.searchCache.clear();state.modeCache.clear();state.visibleRows.clear();state.progress.clear();state.live.clear();state.lastLoadedAt=0;state.filterToken='';state.sessionId='';state.modeChosen=false;state.modePanelOpen=true;state.selectedLocation='';state.locationCollapsed=false});/* Mientras Ajustar inventario esté visible, verifica periódicamente la versión remota. La lectura normal sólo descarga la fotografía completa si cambió el seq; así evita inventario viejo sin generar carga continua. */setInterval(()=>{if(!$('transferAdjustView')?.classList.contains('mx-hidden')&&!document.hidden){syncHistory().catch(()=>{});syncCurrentSession().catch(()=>{});if(!document.activeElement?.matches?.('[data-ic-count]'))refreshInBackground(false).catch(()=>{})}},30000)}
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
