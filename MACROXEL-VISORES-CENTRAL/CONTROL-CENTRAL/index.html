@@ -2143,7 +2143,8 @@ async function allLotsRowsIncludingZero(force=false){
     const lot=summary.singleLot;
     const row={...lot,clave:txt(summary.clave),almacen:Math.max(0,num(lot.almacen)),estantes:Math.max(0,num(lot.estantes)),descripcion:txt(summary.descripcion)||txt(summary.clave)};
     row.nombre=row.descripcion;row.existencia=row.almacen+row.estantes;
-    const k=ref(row);if(!existing.has(k)){existing.add(k);rows.push(row)}
+    const k=ref(row),sameLot=rows.some(r=>norm(r.clave)===norm(row.clave)&&norm(r.lote)===norm(row.lote)&&norm(r.caducidad)===norm(row.caducidad));
+    if(!existing.has(k)&&!sameLot){existing.add(k);rows.push(row)}
   }
   // Solo productos realmente registrados en Inventario Principal, no todo el catálogo.
   // Mostrar 0 en esta vista no implica borrar el producto ni cambiar ESTANTES.
