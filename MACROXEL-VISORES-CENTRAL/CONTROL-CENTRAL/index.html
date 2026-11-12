@@ -2613,6 +2613,12 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     cart.push({...selectedItem,pzs:plan.qty,origenDescontar:plan.qty,destinoSumar:plan.qty,ampPacking:plan.pack,conservationMode:plan.conservationMode,directionCode:direction().code,unidadesPorEmpaqueDetectadas:plan.unitsPerPackage});
     closeQty();renderCart();setStatus('Se agregaron '+plan.qty+' ámpulas equivalentes.','ok');focusTransferSearch(true);
   }
+  // Evitar suponer que una caja rotulada en ámpulas ya está contada por ámpula.
+  function requiresManualAmpChoice(product){
+    if(product?.ampNormalized===true)return false;
+    const label=norm([product?.descripcion,product?.unidad,product?.presentacion].filter(Boolean).join(' '));
+    return /\b(CAJA|CAJAS|ENVASE|ENVASES)\b/.test(label)&&/\b(AMPULA|AMPULAS|AMPOLLETA|AMPOLLETAS|AMPOLLA|AMPOLLAS)\b/.test(label);
+  }
   // Entrada validada desde el escáner. No modifica existencias hasta Finalizar transferencia.
   window.mxTransferScanAdd=async function(scanned={}){
     const d=requireDirection();
@@ -2624,6 +2630,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     const eligible=products.filter(p=>digits(p.clave).slice(-6)===base);
     if(eligible.length!==1)return{ok:false,message:eligible.length?'Clave CPM ambigua; revisa la presentación.':'No se encontró la clave CPM en el inventario disponible.'};
     const product=eligible[0];
+    if(d.code==='A2E'&&requiresManualAmpChoice(product))return{ok:false,message:'Esta presentación puede estar registrada en cajas. Selecciona el lote y confirma el fraccionamiento manualmente.'};
     let lots=[];
     try{lots=await window.mxSharedInventoryHub.lots(product.clave,false,product.seq);}catch(e){return{ok:false,message:'No se pudieron consultar los lotes: '+(e?.message||e)}}
     const normalized=(v)=>norm(v).replace(/\s+/g,'');
@@ -2893,6 +2900,7 @@ Se enviará a Macroxel y quedará guardada en Historial.`;
     if(direction().code!=='A2E'){if(cart.length)throw new Error('Vacía el carrito antes de agregar un Pedido de farmacia.');$('transferDirection').value='A2E';lastDirection='A2E';updateDirectionUi();}
     await loadLots(false);const clave=norm(order?.clave||order?.c),wanted=Math.max(1,Math.ceil(num(order?.pzsRecomendadas||order?.recommended||order?.pzs)));
     const product=products.find(r=>norm(r.clave)===clave);if(!product)throw new Error('La clave no existe en el CPM sincronizado.');
+    if(requiresManualAmpChoice(product))throw new Error('Cajas de ámpulas: confirma el fraccionamiento en Transferencias antes de mover existencias.');
     let lots=[];if(product.singleLot&&num(product.singleLot.almacen)>0)lots=[Object.assign({},product.singleLot,{descripcion:product.descripcion})];else lots=await window.mxSharedInventoryHub.lots(clave,false,product.seq);
     lots=(lots||[]).filter(r=>num(r.almacen)>0).sort((a,b)=>String(a.caducidad||'9999').localeCompare(String(b.caducidad||'9999')));if(!lots.length)throw new Error('No hay existencia disponible en Almacén para surtir esta clave.');
     let remaining=wanted,added=0;for(const lot of lots){if(remaining<=0)break;const key=cartKey(lot),found=cart.find(x=>cartKey(x)===key),reserved=num(found?.pzs),available=Math.max(0,num(lot.almacen)-reserved),take=Math.min(remaining,available);if(take<=0)continue;if(found)found.pzs+=take;else cart.push(Object.assign({},lot,{descripcion:lot.descripcion||product.descripcion,pzs:take}));remaining-=take;added+=take;}
