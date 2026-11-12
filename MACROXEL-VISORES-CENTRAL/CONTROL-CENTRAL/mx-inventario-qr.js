@@ -7,6 +7,8 @@ const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>'
 const key=s=>String(s??'').trim().toUpperCase();
 const qty=v=>Math.max(0,Math.floor(Number(v)||0));
 const storage='mx-hps-conteo-qr-almacen-v1';
+const backupStorage='mx-hps-conteo-qr-almacen-respaldo-v343';
+const sessionBackup='mx-hps-conteo-qr-almacen-sesion-v343';
 const pendingStorage='mx-hps-conteo-qr-almacen-pendientes-v319';
 let stockVerified=false,warehouseSnapshotAt='',reviewSignature='',sending=false,finishing=false;
 const sameCode=(a,b)=>{const norm=v=>key(v).replace(/[^A-Z0-9.]/g,'');const x=norm(a),y=norm(b);return x===y||x.endsWith('.'+y)||y.endsWith('.'+x)};
@@ -40,9 +42,11 @@ function flash(){
 async function cancelInventory(){
  if(sending||finishing)return notify('Hay un envío en proceso, no puede cancelarse.');
  const p=getPending(),message=p&&!p.sent?'¿Cancelar y descartar también el conteo pendiente de envío? NO modifica Sistema Principal.':'¿Cancelar inventario QR y borrar todos los escaneos locales? NO modifica Sistema Principal.';
- if(!window.confirm(message))return;
+ const typed=window.prompt(message+'\n\nPara borrar el conteo escribe exactamente CANCELAR:','');
+ if(typed===null)return;
+ if(typed.trim()!=='CANCELAR')return notify('Cancelación detenida. Debes escribir exactamente CANCELAR. El conteo se conserva.');
  await stop();count.clear();stock=[];unclassified=0;stockVerified=false;last='';lastAt=0;processing=false;
- try{localStorage.removeItem(storage);localStorage.removeItem(pendingStorage)}catch(_){}
+ clearDraftBackups();
  $('mxInvQrCamera').textContent='📷 Activar cámara';closeFinal();table();
  notify('Inventario QR cancelado sin cambios en el Sistema Principal.');root.hidden=true;
 }
@@ -53,8 +57,30 @@ function decode(raw){
   return {clave:a[0],lote:a[1],caducidad:a[2],pzs:qty(a[3])||1};
 }
 function notify(s){if($('mxInvQrStatus'))$('mxInvQrStatus').textContent=s;}
-function save(){try{localStorage.setItem(storage,JSON.stringify([...count.entries()]));}catch(e){notify('No se pudo guardar el borrador local.');}}
-function restore(){try{count=new Map(JSON.parse(localStorage.getItem(storage)||'[]'));}catch{count=new Map();}}
+function snapshot(){return JSON.stringify({version:343,at:Date.now(),rows:[...count.entries()]});}
+function validRows(rows){return Array.isArray(rows)&&rows.every(x=>Array.isArray(x)&&x.length===2&&typeof x[0]==='string'&&x[1]&&typeof x[1]==='object')}
+function save(){
+ const data=snapshot();let ok=0;
+ try{localStorage.setItem(storage,JSON.stringify([...count.entries()]));ok++}catch(_e){}
+ try{localStorage.setItem(backupStorage,data);ok++}catch(_e){}
+ try{sessionStorage.setItem(sessionBackup,data);ok++}catch(_e){}
+ if(!ok)notify('ALERTA: no se pudo guardar el conteo local. No cierres la página.');
+ return ok>0;
+}
+function clearDraftBackups(){
+ for(const k of [storage,backupStorage])try{localStorage.removeItem(k)}catch(_e){}
+ try{sessionStorage.removeItem(sessionBackup)}catch(_e){}
+ try{localStorage.removeItem(pendingStorage)}catch(_e){}
+}
+function restore(){
+ const candidates=[];
+ for(const [area,k] of [[localStorage,storage],[localStorage,backupStorage],[sessionStorage,sessionBackup]]){
+  try{const raw=area.getItem(k);if(!raw)continue;const value=JSON.parse(raw),rows=Array.isArray(value)?value:value.rows;if(validRows(rows))candidates.push({rows,at:Array.isArray(value)?0:Number(value.at)||0});}catch(_e){}
+ }
+ candidates.sort((a,b)=>b.at-a.at||b.rows.length-a.rows.length);
+ count=new Map(candidates[0]?.rows||[]);
+ if(count.size)save();
+}
 async function loadStock(){
  const hub=window.mxSharedInventoryHub;
  if(!hub){stockVerified=false;stock=[];return stock}
@@ -225,6 +251,8 @@ function init(){
  $('mxInvQrCamera').onclick=()=>void camera();
  $('mxInvQrClose').onclick=()=>{void stop();root.hidden=true;};
  $('mxInvQrCancelInventory').onclick=()=>void cancelInventory();
+ window.addEventListener('pagehide',()=>{if(count.size)save();});
+ document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&count.size)save();});
  $('mxInvQrSendPending').onclick=()=>void sendPending();
  $('mxInvQrFinish').onclick=finalize;$('mxInvQrKeep').onclick=()=>end('conservar');$('mxInvQrDelete').onclick=()=>end('eliminar');$('mxInvQrCancel').onclick=closeFinal;
  $('mxInvQrRows').addEventListener('click',e=>{
