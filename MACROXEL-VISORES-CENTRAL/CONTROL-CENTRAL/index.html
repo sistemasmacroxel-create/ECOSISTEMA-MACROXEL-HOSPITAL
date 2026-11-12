@@ -953,6 +953,16 @@ body.mx-auth-blue-flash-v167::after{content:"";position:fixed;inset:0;z-index:21
   #mxModuleTopbarV103 #mxModuleTitleV103{font-size:11px!important}
 }
 </style>
+<style id="mx-amp-transfer-v339">
+.mx-amp-options{border:1px solid #bfdbfe;background:#eff6ff;border-radius:12px;padding:10px;margin:8px 0;color:#12345d;text-align:left}
+.mx-amp-options[hidden],.mx-amp-options [hidden]{display:none!important}
+.mx-amp-options label{display:block;margin:8px 0 5px;font-size:12px;font-weight:750}
+.mx-amp-options select,.mx-amp-options input[type=number]{width:100%;min-height:37px;border:1px solid #a5bfde;border-radius:8px;background:#fff;padding:7px;font-size:14px}
+.mx-amp-options .mx-amp-switch{display:flex;gap:9px;align-items:flex-start;font-weight:750;line-height:1.3}
+.mx-amp-options .mx-amp-switch input[type=checkbox]{width:20px;height:20px;flex:none;margin:0;accent-color:#15803d}
+.mx-amp-options .mx-amp-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+@media(max-width:520px){.mx-amp-options .mx-amp-grid{grid-template-columns:1fr}}
+</style>
 </head>
 
 <body>
@@ -1402,7 +1412,7 @@ body.mx-auth-blue-flash-v167::after{content:"";position:fixed;inset:0;z-index:21
 <div class="footer">MACROXEL — Transferencias</div>
 </div>
 <div aria-hidden="true" class="qty-modal" id="transferQtyModal">
-<div class="qty-box">
+<div class="qty-box" style="max-height:90dvh;overflow:auto">
 <h3>Agregar producto</h3>
 <div class="qty-product" id="transferQtyProduct">Producto</div>
 <div class="qty-conversion-grid">
@@ -1411,13 +1421,27 @@ body.mx-auth-blue-flash-v167::after{content:"";position:fixed;inset:0;z-index:21
 <input autocomplete="off" enterkeyhint="done" id="transferQtyInput" inputmode="numeric" pattern="[0-9]*" type="text" value="1"/>
 </div>
 </div>
-<div id="mxTransferPackOptions" hidden style="margin:9px 0;padding:10px;border:1px solid #86efac;border-radius:10px;background:#f0fdf4">
-<label for="mxTransferPackMode" style="font-weight:850;color:#14532d">Unidad y fraccionamiento</label>
-<select id="mxTransferPackMode" style="display:block;width:100%;padding:9px;margin-top:5px;border:1px solid #86efac;border-radius:8px;font-weight:800">
-<option value="ONE_TO_ONE">Piezas (sin fraccionar)</option>
-<option value="BOX_TO_AMPOULE_V1">Cajas → ámpulas</option>
-<option value="AMPOULE_TO_BOX_V1">Ámpulas → cajas cerradas</option>
-</select><small id="mxTransferPackHint" style="display:block;margin-top:5px;color:#166534"></small></div>
+<div id="mxTransferAmpOptionsV339" class="mx-amp-options" hidden>
+<label class="mx-amp-switch"><input id="mxTransferPackEnabled" type="checkbox"> Fraccionar por ámpulas</label>
+<div id="mxTransferPackFields" hidden>
+<label>¿Cómo están CONTADAS las existencias actuales de Almacén?</label>
+<select id="mxTransferPackStoredUnit">
+<option value="AMP">Ámpulas individuales</option>
+<option value="INNER">Cajas interiores (ej. 4 cajas de 50)</option>
+<option value="MASTER">Caja grande / máster (ej. una con 4 cajas de 50)</option>
+</select>
+<div class="mx-amp-grid">
+<label>Ámpulas por caja interior <input id="mxTransferAmpPerInner" type="number" inputmode="numeric" min="1" max="10000" value="50"></label>
+<label>Cajas interiores por caja grande <input id="mxTransferInnerPerMaster" type="number" inputmode="numeric" min="1" max="1000" value="4"></label>
+</div>
+<label>¿Qué vas a mover?</label>
+<select id="mxTransferPackMoveUnit">
+<option value="INNER">Cajas interiores</option>
+<option value="MASTER">Cajas grandes / máster</option>
+<option value="AMP">Ámpulas individuales</option>
+</select>
+<label class="mx-amp-switch"><input id="mxTransferPackConfirm" type="checkbox"> Confirmo el contenido real del empaque y que Estantes está contado en ámpulas. Después de transferir, este lote se contabilizará en ámpulas.</label>
+</div></div>
 <div class="qty-conversion-summary" id="transferConversionSummary">Captura directamente la cantidad final que deseas transferir.</div>
 <div class="status" id="transferQtyHelp">
 </div>
@@ -2027,7 +2051,7 @@ async function mxTrBumpVersion(path){const p=String(path||'');const key=p.includ
     }
     return{catalog:MEM_CATALOG,meta};
   }
-  function convertSingle(row,description){const a=Array.isArray(row?.one)?row.one:null;if(!a)return null;return{inventoryId:txt(a[0]),clave:txt(row.c),lote:txt(a[1]),caducidad:txt(a[2]),codigo_barras:txt(a[3]),almacen:num(a[4]),estantes:num(a[5]),unidad:txt(a[6]),clasificacion:txt(a[7]),restriccion:txt(a[8]),ubicacion:txt(a[9]),__mxUnitPerPackV339:num(a[10])||1,existencia:num(a[4])*(num(a[10])||1)+num(a[5]),descripcion:txt(description)};}
+  function convertSingle(row,description){const a=Array.isArray(row?.one)?row.one:null;if(!a)return null;return{inventoryId:txt(a[0]),clave:txt(row.c),lote:txt(a[1]),caducidad:txt(a[2]),codigo_barras:txt(a[3]),almacen:num(a[4]),estantes:num(a[5]),unidad:txt(a[6]),clasificacion:txt(a[7]),restriccion:txt(a[8]),ubicacion:txt(a[9]),ampNormalized:num(a[10])===1,ampsPerInner:num(a[11])||1,innerPerMaster:num(a[12])||1,existencia:num(a[4])+num(a[5]),descripcion:txt(description)};}
   function stockRows(catalog,totals,includeZero=false){const catalogByKey=new Map((catalog||[]).map(p=>[norm(p?.clave),p]));return Object.values(totals||{}).filter(r=>r&&r.c).map(r=>{const clave=norm(r.c),p=catalogByKey.get(clave)||{},descripcion=txt(r.d||p.descripcion||clave),row={clave,descripcion,unidad:txt(r.u||p.unidad),clasificacion:txt(r.cl||r.one?.[7]||p.clasificacion),restriccion:txt(r.rs||r.one?.[8]||p.restriccion),existencia:num(r.e),almacen:num(r.a),estantes:num(r.s),lotes:num(r.l),seq:num(r.seq),singleLot:convertSingle(r,descripcion)};return(includeZero||row.existencia>0||row.almacen>0||row.estantes>0)?row:null;}).filter(Boolean).sort((a,b)=>txt(a.descripcion||a.clave).localeCompare(txt(b.descripcion||b.clave),'es'));}
   function localStocks(){const items=stockRows(MEM_CATALOG||embeddedCatalog(),MEM_TOTALS||{});return{items,updatedAt:MEM_UPDATED_AT,updatedAtText:MEM_UPDATED_TEXT||(items.length?'Inventario principal en memoria':'Inventario principal pendiente de sincronizar'),seq:MEM_SEQ};}
   async function hydrateStocks(branch){if(MEM_TOTALS)return;const disk=await cacheGet('stocks|'+branch).catch(()=>null);if(disk&&disk.totals&&typeof disk.totals==='object'){MEM_TOTALS=disk.totals;MEM_SEQ=num(disk.seq);MEM_UPDATED_AT=disk.updatedAt||null;MEM_UPDATED_TEXT=txt(disk.updatedAtText)}}
@@ -2048,7 +2072,7 @@ async function mxTrBumpVersion(path){const p=String(path||'');const key=p.includ
   const safeLotKey=v=>{try{return btoa(unescape(encodeURIComponent(norm(v)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}catch(_e){return norm(v).replace(/[.#$\[\]\/]/g,'_')}};
   function readLotStore(){return DIRECT_LOT_STORE}
   function writeLotStore(store){for(const k of Object.keys(DIRECT_LOT_STORE))delete DIRECT_LOT_STORE[k];for(const [k,v] of Object.entries(store||{}).sort((a,b)=>num(b[1]?.at)-num(a[1]?.at)).slice(0,160))DIRECT_LOT_STORE[k]=v}
-  function parseLotPayload(payload,clave){const rows=Array.isArray(payload?.items)?payload.items:[];return rows.map(a=>Array.isArray(a)?{inventoryId:txt(a[0]),clave:norm(payload?.c||clave),lote:txt(a[1]),caducidad:txt(a[2]),codigo_barras:txt(a[3]),almacen:num(a[4]),estantes:num(a[5]),unidad:txt(a[6]),clasificacion:txt(a[7]),restriccion:txt(a[8]),ubicacion:txt(a[9]),__mxUnitPerPackV339:num(a[10])||1,existencia:num(a[4])*(num(a[10])||1)+num(a[5])}:{...a,clave:norm(a?.clave||clave),clasificacion:txt(a?.clasificacion),restriccion:txt(a?.restriccion),ubicacion:txt(a?.ubicacion??a?.['ubicación']),almacen:num(a?.almacen),estantes:num(a?.estantes),existencia:num(a?.existencia)||num(a?.almacen)+num(a?.estantes)}).filter(x=>(num(x.almacen)+num(x.estantes))>0)}
+  function parseLotPayload(payload,clave){const rows=Array.isArray(payload?.items)?payload.items:[];return rows.map(a=>Array.isArray(a)?{inventoryId:txt(a[0]),clave:norm(payload?.c||clave),lote:txt(a[1]),caducidad:txt(a[2]),codigo_barras:txt(a[3]),almacen:num(a[4]),estantes:num(a[5]),unidad:txt(a[6]),clasificacion:txt(a[7]),restriccion:txt(a[8]),ubicacion:txt(a[9]),ampNormalized:num(a[10])===1,ampsPerInner:num(a[11])||1,innerPerMaster:num(a[12])||1,existencia:num(a[4])+num(a[5])}:{...a,clave:norm(a?.clave||clave),clasificacion:txt(a?.clasificacion),restriccion:txt(a?.restriccion),ubicacion:txt(a?.ubicacion??a?.['ubicación']),almacen:num(a?.almacen),estantes:num(a?.estantes),existencia:num(a?.existencia)||num(a?.almacen)+num(a?.estantes)}).filter(x=>(num(x.almacen)+num(x.estantes))>0)}
   function fastDb(){if(FAST_DB_PROMISE)return FAST_DB_PROMISE;FAST_DB_PROMISE=new Promise(resolve=>{try{const req=indexedDB.open(FAST_DB,1);req.onupgradeneeded=()=>{const db=req.result;if(!db.objectStoreNames.contains(FAST_STORE))db.createObjectStore(FAST_STORE)};req.onsuccess=()=>resolve(req.result);req.onerror=()=>resolve(null)}catch(_e){resolve(null)}});return FAST_DB_PROMISE}
   async function fastGet(key){const db=await fastDb();if(!db)return null;return new Promise(resolve=>{try{const tx=db.transaction(FAST_STORE,'readonly'),req=tx.objectStore(FAST_STORE).get(key);req.onsuccess=()=>resolve(req.result||null);req.onerror=()=>resolve(null)}catch(_e){resolve(null)}})}
   async function fastPut(key,value){const db=await fastDb();if(!db)return false;return new Promise(resolve=>{try{const tx=db.transaction(FAST_STORE,'readwrite');tx.objectStore(FAST_STORE).put(value,key);tx.oncomplete=()=>resolve(true);tx.onerror=()=>resolve(false)}catch(_e){resolve(false)}})}
@@ -2153,10 +2177,10 @@ function parseAllLots(root,snapshot){
       for(const a of payload.items){
         if(!Array.isArray(a))continue;
         const almacen=Math.max(0,num(a[4])),estantes=Math.max(0,num(a[5]));if(almacen+estantes<=0)continue;
-        rows.push({inventoryId:txt(a[0]),clave,lote:txt(a[1]),caducidad:txt(a[2]),codigo_barras:txt(a[3]),almacen,estantes,existencia:almacen*(num(a[10])||1)+estantes,__mxUnitPerPackV339:num(a[10])||1,unidad:txt(a[6]),clasificacion:txt(a[7]),restriccion:txt(a[8]),ubicacion:txt(a[9]),descripcion:txt(summary.descripcion)||clave,nombre:txt(summary.descripcion)||clave,seq:num(payload.v)});
+        rows.push({inventoryId:txt(a[0]),clave,lote:txt(a[1]),caducidad:txt(a[2]),codigo_barras:txt(a[3]),almacen,estantes,existencia:almacen+estantes,ampNormalized:num(a[10])===1,ampsPerInner:num(a[11])||1,innerPerMaster:num(a[12])||1,unidad:txt(a[6]),clasificacion:txt(a[7]),restriccion:txt(a[8]),ubicacion:txt(a[9]),descripcion:txt(summary.descripcion)||clave,nombre:txt(summary.descripcion)||clave,seq:num(payload.v)});
       }
     }else if(summary.singleLot&&(num(summary.singleLot.almacen)>0||num(summary.singleLot.estantes)>0)){
-      rows.push({...summary.singleLot,clave,descripcion:txt(summary.descripcion)||clave,nombre:txt(summary.descripcion)||clave,existencia:num(summary.singleLot.almacen)*(num(summary.singleLot.__mxUnitPerPackV339)||1)+num(summary.singleLot.estantes),seq:num(summary.seq)});
+      rows.push({...summary.singleLot,clave,descripcion:txt(summary.descripcion)||clave,nombre:txt(summary.descripcion)||clave,existencia:num(summary.singleLot.almacen)+num(summary.singleLot.estantes),seq:num(summary.seq)});
     }
   }
   return rows;
@@ -2214,7 +2238,7 @@ async function allLotsRowsIncludingZero(force=false){
     const meta=refs.get(encoded)||{},description=txt(meta.descripcion||meta.nombre||payload.descripcion||payload.d)||code;
     for(const a of payload.items){
       if(!Array.isArray(a))continue;
-      const r={inventoryId:txt(a[0]),clave:code,lote:txt(a[1]),caducidad:txt(a[2]),codigo_barras:txt(a[3]),almacen:Math.max(0,num(a[4])),estantes:Math.max(0,num(a[5])),unidad:txt(a[6]||meta.unidad),clasificacion:txt(a[7]||meta.clasificacion),restriccion:txt(a[8]||meta.restriccion),ubicacion:txt(a[9]),__mxUnitPerPackV339:num(a[10])||1,descripcion:description,nombre:description,seq:num(payload.v)};
+      const r={inventoryId:txt(a[0]),clave:code,lote:txt(a[1]),caducidad:txt(a[2]),codigo_barras:txt(a[3]),almacen:Math.max(0,num(a[4])),estantes:Math.max(0,num(a[5])),unidad:txt(a[6]||meta.unidad),clasificacion:txt(a[7]||meta.clasificacion),restriccion:txt(a[8]||meta.restriccion),ubicacion:txt(a[9]),ampNormalized:num(a[10])===1,ampsPerInner:num(a[11])||1,innerPerMaster:num(a[12])||1,descripcion:description,nombre:description,seq:num(payload.v)};
       r.existencia=r.almacen+r.estantes;addRow(r);
     }
   }
@@ -2317,7 +2341,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   let products=[],loaded=false,cart=[],selectedItem=null,searchTimer=0,responseWatchers=new Set(),lastDirection='',transferSearchSelectArmed=false,transferSearchKeyboardMode='numeric',transferQtySelectArmed=false,reviewContext=null,transferRenderedRows=[],mxTransferProductsSig='';
   const transferSearchCache=new WeakMap();
   function transferSearchText(r){let v=transferSearchCache.get(r);if(v===undefined){v=norm((r?.clave||'')+' '+(r?.descripcion||''));transferSearchCache.set(r,v)}return v}
-  function transferProductsSignature(rows){return JSON.stringify((Array.isArray(rows)?rows:[]).map(r=>[norm(r?.clave),txt(r?.descripcion||r?.nombre),num(r?.almacen),num(r?.estantes),num(r?.existencia),num(r?.lotes),num(r?.__mxUnitPerPackV339)]).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))));}
+  function transferProductsSignature(rows){return JSON.stringify((Array.isArray(rows)?rows:[]).map(r=>[norm(r?.clave),txt(r?.descripcion||r?.nombre),num(r?.almacen),num(r?.estantes),num(r?.existencia),num(r?.lotes),(r?.ampNormalized?1:0)]).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))));}
   function applyTransferProducts(next,{render=true}={}){
     const rows=Array.isArray(next)?next:[],sig=transferProductsSignature(rows);
     if(sig===mxTransferProductsSig)return false;
@@ -2454,48 +2478,44 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     }
     setTransferCartOpen(!transferCartIsOpen());
   }
-  function ampoulesPerBox(row){
-    const stored=Math.floor(num(row?.__mxUnitPerPackV339||row?.unitsPerPackage));
-    if(stored===50||stored===100)return stored;
-    const description=norm([row?.descripcion,row?.unidad,row?.presentacion].filter(Boolean).join(' '));
-    if(!/\b(CAJA|CAJAS|ENVASE|ENVASES)\b/.test(description))return 0;
-    const values=[...new Set([...description.matchAll(/\b(50|100)\s*(?:AMPOLLAS?|AMPOLLETAS?|AMPULAS?)\b/g)].map(m=>Number(m[1])))];
-    return values.length===1?values[0]:0;
+  function ampPackagingForm(){
+    const enabled=$('mxTransferPackEnabled').checked,count=Number($('transferQtyInput').value||0),
+      ampsPerInner=Number($('mxTransferAmpPerInner').value),innerPerMaster=Number($('mxTransferInnerPerMaster').value),
+      storedUnit=$('mxTransferPackStoredUnit').value,moveUnit=$('mxTransferPackMoveUnit').value,
+      multiplier=moveUnit==='INNER'?ampsPerInner:moveUnit==='MASTER'?ampsPerInner*innerPerMaster:1,
+      factor=storedUnit==='INNER'?ampsPerInner:storedUnit==='MASTER'?ampsPerInner*innerPerMaster:1;
+    return{enabled,count,ampsPerInner,innerPerMaster,storedUnit,moveUnit,multiplier,factor,confirmed:$('mxTransferPackConfirm').checked};
   }
-  function transferMode(item,explicit){
-    if(explicit)return explicit;
-    if(item?.conservationMode)return item.conservationMode;
-    return 'ONE_TO_ONE';
-  }
-  function manualTransferPlan(item,qtyValue,explicitMode=''){
-    const d=direction(),availableSource=Math.max(0,Math.floor(num(item?.[d.from]))),qty=Math.max(0,Math.floor(num(qtyValue)));
-    const factor=ampoulesPerBox(item),mode=transferMode(item,explicitMode);
-    if(qty<=0)return{ok:false,message:'La cantidad debe ser mayor a cero.',qty,availableSource};
-    if(availableSource<=0)return{ok:false,message:`No hay existencia disponible en ${d.fromLabel}.`,qty,availableSource};
-    if(qty>availableSource)return{ok:false,message:`No hay suficientes unidades en ${d.fromLabel}. Solicitadas ${qty}, disponibles ${availableSource}.`,qty,availableSource};
-    const existing=Math.floor(num(item?.__mxUnitPerPackV339));
-    if(mode==='ONE_TO_ONE'&&([50,100].includes(existing)||(d.code==='A2E'&&factor>1)))return{ok:false,message:'Este lote requiere fraccionamiento en cajas y ámpulas.'};
-    if(mode==='ONE_TO_ONE')return{ok:true,qty,sourceQty:qty,destinationQty:qty,availableSource,unitsPerPackage:1,directionCode:d.code,manualQuantity:true,conservationMode:mode};
-    if(![50,100].includes(factor))return{ok:false,message:'No se encontró una presentación única de 50 o 100 ámpulas por caja. Verifica el producto.'};
-    if(mode==='BOX_TO_AMPOULE_V1'&&d.code==='A2E')return{ok:true,qty,sourceQty:qty,destinationQty:qty*factor,availableSource,unitsPerPackage:factor,directionCode:d.code,manualQuantity:true,conservationMode:mode};
-    if(mode==='AMPOULE_TO_BOX_V1'&&d.code==='E2A'){
-      if(qty%factor!==0)return{ok:false,message:`Para devolver cajas completas, las ámpulas deben ser múltiplo de ${factor}.`};
-      return{ok:true,qty,sourceQty:qty,destinationQty:qty/factor,availableSource,unitsPerPackage:factor,directionCode:d.code,manualQuantity:true,conservationMode:mode};
+  function manualTransferPlan(item,qtyValue,fromForm=false){
+    const d=direction(),rawAvailable=Math.max(0,num(item?.[d.from])),n=Number(qtyValue);
+    const f=fromForm?ampPackagingForm():null,stored=item?.ampPacking?.enabled===true?item.ampPacking:null;
+    const convert=fromForm?f?.enabled===true:!!stored,ampNormalized=item?.ampNormalized===true;
+    const factor=fromForm?(ampNormalized?1:(f?.factor||1)):(ampNormalized?1:Number(stored?.warehouseFactor||1));
+    const qty=convert&&fromForm?n*(f?.multiplier||1):n,availableSource=rawAvailable*(convert?factor:1);
+    if(!Number.isSafeInteger(n)||n<=0||!Number.isSafeInteger(qty)||qty<=0)return{ok:false,message:'Captura una cantidad entera mayor a cero.'};
+    if(convert&&d.code!=='A2E')return{ok:false,message:'Fraccionar solo está habilitado de Almacén a Estantes.'};
+    if(convert&&fromForm){
+      if(![f.ampsPerInner,f.innerPerMaster,f.factor,f.multiplier].every(Number.isSafeInteger)||f.ampsPerInner<1||f.ampsPerInner>10000||f.innerPerMaster<1||f.innerPerMaster>1000||f.factor>100000)return{ok:false,message:'Revisa ámpulas por caja y cajas interiores por máster.'};
+      if(!f.confirmed)return{ok:false,message:'Confirma el empaque y las unidades de Estantes antes de agregar.'};
     }
-    return{ok:false,message:'El fraccionamiento elegido no coincide con el sentido de la transferencia.'};
+    if(availableSource<=0)return{ok:false,message:'No hay unidades disponibles en el origen.'};
+    if(qty>availableSource)return{ok:false,message:'Solicitas '+qty+' ámpulas, pero solo hay '+availableSource+' equivalentes disponibles.',qty,availableSource};
+    const pack=convert?(fromForm?{enabled:true,version:339,warehouseFactor:ampNormalized?1:f.factor,ampsPerInner:f.ampsPerInner,innerPerMaster:f.innerPerMaster,storedUnit:ampNormalized?'AMP':f.storedUnit,moveUnit:f.moveUnit,moveCount:f.count,confirmed:true,estantesEnAmpulas:true}:stored):null;
+    return{ok:true,qty,sourceQty:qty,destinationQty:qty,availableSource,pack,unitsPerPackage:convert?(fromForm?f.multiplier:1):1,directionCode:d.code,conservationMode:convert?'AMP_BASE_V339':'ONE_TO_ONE'};
+  }
+  function showAmpFields(){
+    const enabled=$('mxTransferPackEnabled').checked;$('mxTransferPackFields').hidden=!enabled;
+    $('transferQtyInput').previousElementSibling.textContent=enabled?'¿Cuántas unidades vas a mover?':'Cantidad a transferir';
+    updateQtyTransferSummary();
   }
   function updateQtyTransferSummary(){
     if(!selectedItem)return;
-    const d=direction(),plan=manualTransferPlan(selectedItem,$('transferQtyInput').value,$('mxTransferPackMode')?.value||'ONE_TO_ONE'),box=$('transferConversionSummary'),help=$('transferQtyHelp');
+    const d=direction(),plan=manualTransferPlan(selectedItem,$('transferQtyInput').value,true),box=$('transferConversionSummary'),help=$('transferQtyHelp');
     if(plan.ok){
-      const sourceUnit=plan.conservationMode==='BOX_TO_AMPOULE_V1'?'cajas':plan.conservationMode==='AMPOULE_TO_BOX_V1'?'ámpulas':'piezas';
-      const destinationUnit=plan.conservationMode==='BOX_TO_AMPOULE_V1'?'ámpulas':plan.conservationMode==='AMPOULE_TO_BOX_V1'?'cajas':'piezas';
-      box.innerHTML=`Se descontarán <b>${plan.sourceQty} ${sourceUnit}</b> de <b>${esc(d.fromLabel)}</b> y se agregarán <b>${plan.destinationQty} ${destinationUnit}</b> a <b>${esc(d.toLabel)}</b>.`;
-      help.style.color='#166534';
-      help.textContent=plan.unitsPerPackage>1?`Presentación: 1 caja = ${plan.unitsPerPackage} ámpulas. El mismo lote se conserva en ambos sitios.`:`Disponible en ${d.fromLabel}: ${plan.availableSource}. Transferencia normal 1 a 1.`;
-    }else{
-      box.textContent=plan.message;help.style.color='#991b1b';help.textContent=plan.message;
-    }
+      if(plan.pack){const name=plan.pack.moveUnit==='INNER'?'cajas interiores':plan.pack.moveUnit==='MASTER'?'cajas grandes':'ámpulas';box.textContent=plan.pack.moveCount+' '+name+' = '+plan.qty+' ámpulas a Estantes. Quedan '+(plan.availableSource-plan.qty)+' ámpulas equivalentes en Almacén.';}
+      else box.textContent=plan.qty+' de '+d.fromLabel+' → '+plan.qty+' a '+d.toLabel+'.';
+      help.style.color='#166534';help.textContent=plan.pack&&plan.pack.warehouseFactor>1?'El inventario del lote se normalizará una sola vez a ámpulas al registrar la transferencia.':'Disponible: '+plan.availableSource+'.';
+    }else{box.textContent=plan.message;help.style.color='#991b1b';help.textContent=plan.message;}
   }
   function transferSelectQtyNow(){
     const input=$('transferQtyInput');if(!input)return;
@@ -2528,18 +2548,12 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   }
   function openQty(item){
     const d=direction(),max=available(item);selectedItem=item;
-    const factor=ampoulesPerBox(item),pack=$('mxTransferPackOptions'),select=$('mxTransferPackMode'),hint=$('mxTransferPackHint');
-    const enabled=[50,100].includes(factor);pack.hidden=!enabled;
-    if(enabled){
-      const mode=d.code==='A2E'?'BOX_TO_AMPOULE_V1':(num(item?.__mxUnitPerPackV339)>1?'AMPOULE_TO_BOX_V1':'ONE_TO_ONE');
-      select.value=mode;
-      select.querySelector('[value="BOX_TO_AMPOULE_V1"]').textContent=`Cajas → ámpulas (×${factor})`;
-      select.querySelector('[value="AMPOULE_TO_BOX_V1"]').textContent=`Ámpulas → cajas completas (÷${factor})`;
-      select.querySelector('[value="BOX_TO_AMPOULE_V1"]').hidden=d.code!=='A2E';
-      select.querySelector('[value="AMPOULE_TO_BOX_V1"]').hidden=d.code!=='E2A';
-      select.querySelector('[value="ONE_TO_ONE"]').disabled=d.code==='A2E'||num(item?.__mxUnitPerPackV339)>1;
-      hint.textContent='Almacén en cajas · Estantes en ámpulas. Confirma el cálculo antes de agregar.';
-    }else select.value='ONE_TO_ONE';
+    const ampOptions=$('mxTransferAmpOptionsV339'),canPack=d.code==='A2E';
+    ampOptions.hidden=!canPack;$('mxTransferPackEnabled').checked=false;$('mxTransferPackFields').hidden=true;
+    $('mxTransferPackStoredUnit').value='AMP';$('mxTransferPackStoredUnit').disabled=!!item.ampNormalized;
+    $('mxTransferAmpPerInner').value=num(item.ampsPerInner)>1?String(item.ampsPerInner):'50';
+    $('mxTransferInnerPerMaster').value=num(item.innerPerMaster)>1?String(item.innerPerMaster):'4';
+    $('mxTransferPackMoveUnit').value='INNER';$('mxTransferPackConfirm').checked=false;
     $('transferQtyProduct').innerHTML=`<b>${esc(item.clave||'')}</b> — ${esc(item.descripcion||'')}<br>Lote: <b>${esc(item.lote||'—')}</b> · Cad: <b>${esc(item.caducidad||'—')}</b><br>${esc(d.fromLabel)} disponible publicado: <b>${max}</b> · Destino: <b>${esc(d.toLabel)}</b>`;
     const qty=$('transferQtyInput'),modal=$('transferQtyModal');
     qty.value='1';qty.setAttribute('inputmode','numeric');qty.setAttribute('pattern','[0-9]*');qty.setAttribute('enterkeyhint','done');
@@ -2592,15 +2606,12 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   }
   function addSelected(){
     if(!selectedItem)return;
-    const qty=Math.floor(num($('transferQtyInput').value)),key=cartKey(selectedItem),found=cart.find(x=>cartKey(x)===key),mode=$('mxTransferPackMode')?.value||'ONE_TO_ONE';
-    if(found&&found.conservationMode!==mode){$('transferQtyHelp').textContent='El lote ya está en el carrito con otra unidad. Retíralo primero para cambiar el tipo de transferencia.';return;}
-    const nextQty=(found?num(found.pzs):0)+qty,plan=manualTransferPlan(selectedItem,nextQty,mode);
+    const plan=manualTransferPlan(selectedItem,$('transferQtyInput').value,true);
     if(!plan.ok){$('transferQtyHelp').textContent=plan.message;$('transferQtyHelp').style.color='#991b1b';return;}
-    const values={pzs:nextQty,origenDescontar:plan.sourceQty,destinoSumar:plan.destinationQty,directionCode:direction().code,cantidadManualSinLimite:false,unidadesPorEmpaqueDetectadas:plan.unitsPerPackage,conservationMode:plan.conservationMode,fraccionamientoConfirmado:plan.unitsPerPackage>1};
-    if(found)Object.assign(found,values);else cart.push(Object.assign({},selectedItem,values));
-    closeQty();renderCart();
-    setStatus(`Producto agregado al carrito. Escribe la siguiente clave para continuar.`,'ok');
-    focusTransferSearch(true);
+    const key=cartKey(selectedItem);
+    if(cart.some(x=>cartKey(x)===key)){$('transferQtyHelp').textContent='Este lote ya está en el carrito. Elimínalo para cambiar la cantidad o la presentación.';return;}
+    cart.push({...selectedItem,pzs:plan.qty,origenDescontar:plan.qty,destinoSumar:plan.qty,ampPacking:plan.pack,conservationMode:plan.conservationMode,directionCode:direction().code,unidadesPorEmpaqueDetectadas:plan.unitsPerPackage});
+    closeQty();renderCart();setStatus('Se agregaron '+plan.qty+' ámpulas equivalentes.','ok');focusTransferSearch(true);
   }
   // Entrada validada desde el escáner. No modifica existencias hasta Finalizar transferencia.
   window.mxTransferScanAdd=async function(scanned={}){
@@ -2613,7 +2624,6 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     const eligible=products.filter(p=>digits(p.clave).slice(-6)===base);
     if(eligible.length!==1)return{ok:false,message:eligible.length?'Clave CPM ambigua; revisa la presentación.':'No se encontró la clave CPM en el inventario disponible.'};
     const product=eligible[0];
-    if(d.code==='A2E'&&ampoulesPerBox(product)>1)return{ok:false,message:'Para cajas de ámpulas, selecciona el lote en el buscador y confirma cuántas cajas vas a fraccionar antes de transferir.'};
     let lots=[];
     try{lots=await window.mxSharedInventoryHub.lots(product.clave,false,product.seq);}catch(e){return{ok:false,message:'No se pudieron consultar los lotes: '+(e?.message||e)}}
     const normalized=(v)=>norm(v).replace(/\s+/g,'');
@@ -2645,8 +2655,9 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     const row=Object.assign({},candidates[0],{clave:product.clave,descripcion:product.descripcion||candidates[0].descripcion});
     const rawQty=txt(scanned.pzs),qty=rawQty===''?1:Number(rawQty);
     if(!Number.isSafeInteger(qty)||qty<1)return{ok:false,message:'Las piezas en el código deben ser un número entero mayor a cero.'};
-    const key=cartKey(row),prior=cart.find(x=>cartKey(x)===key),newQty=(prior?num(prior.pzs):0)+qty;
-    const plan=manualTransferPlan(row,newQty,'ONE_TO_ONE');
+    const key=cartKey(row),prior=cart.find(x=>cartKey(x)===key);if(prior?.ampPacking?.enabled)return{ok:false,message:'Lote con fraccionamiento: elimínalo para cambiar las cantidades.'};
+    const newQty=(prior?num(prior.pzs):0)+qty;
+    const plan=manualTransferPlan(row,newQty);
     if(!plan.ok){setStatus(plan.message,'bad');return{ok:false,message:plan.message};}
     const updates={pzs:newQty,origenDescontar:plan.sourceQty,destinoSumar:plan.destinationQty,directionCode:d.code,cantidadManualSinLimite:false,unidadesPorEmpaqueDetectadas:1};
     if(prior)Object.assign(prior,updates);
@@ -2662,9 +2673,9 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     const query=norm(cartSearch?.value),indexed=cart.map((r,i)=>({r,i})),visible=query?indexed.filter(({r})=>norm(r.clave).includes(query)||norm(r.descripcion).includes(query)):indexed;
     $('transferCart').innerHTML=cart.length
       ?(visible.length?visible.map(({r,i})=>{
-        const max=Math.max(0,num(r?.[d.from])),plan=manualTransferPlan(r,r.pzs,r.conservationMode||'ONE_TO_ONE'),movement=`${plan.sourceQty||r.origenDescontar||0} ${d.fromLabel} → ${plan.destinationQty||r.destinoSumar||num(r.pzs)} ${d.toLabel}`;
+        const max=Math.max(0,num(r?.[d.from])),plan=manualTransferPlan(r,r.pzs),movement=`${plan.sourceQty||r.origenDescontar||0} ${d.fromLabel} → ${plan.destinationQty||r.destinoSumar||num(r.pzs)} ${d.toLabel}`;
         const rejected=Boolean(r.__mxRejectedReview),reason=txt(r.__mxRejectedReason);
-        return`<div class="cart-item${rejected?' mx-rejected-review':''}"><div><div class="name">${esc(r.clave)} — ${esc(r.descripcion)}</div><div class="lot-details"><span class="lot-badge">🏷️ LOTE: ${esc(r.lote||'SIN LOTE')}</span><span class="cad-badge">📅 CADUCIDAD: ${esc(r.caducidad||'SIN CADUCIDAD')}</span></div>${rejected?`<div class="mx-rejected-badge">⚠ RECHAZADO · REVISAR${reason?` · ${esc(reason)}`:''}</div>`:''}<div class="meta">${esc(d.fromLabel)} disponible publicado: ${max} · ${esc(movement)}${plan.unitsPerPackage>1?` · 1 caja = ${plan.unitsPerPackage} ámpulas`:''}</div></div><div class="cart-conversion"><div><label>CANTIDAD A TRANSFERIR</label><input type="number" min="1" step="1" value="${num(r.pzs)}" data-cart-qty="${i}" inputmode="numeric"></div><button type="button" class="cart-remove" data-cart-remove="${i}">🗑️</button></div></div>`;
+        return`<div class="cart-item${rejected?' mx-rejected-review':''}"><div><div class="name">${esc(r.clave)} — ${esc(r.descripcion)}</div><div class="lot-details"><span class="lot-badge">🏷️ LOTE: ${esc(r.lote||'SIN LOTE')}</span><span class="cad-badge">📅 CADUCIDAD: ${esc(r.caducidad||'SIN CADUCIDAD')}</span></div>${rejected?`<div class="mx-rejected-badge">⚠ RECHAZADO · REVISAR${reason?` · ${esc(reason)}`:''}</div>`:''}<div class="meta">${esc(d.fromLabel)} disponible publicado: ${max} · ${esc(movement)}${r.ampPacking?.enabled?' · Fraccionado: '+r.ampPacking.moveCount+' unidades = '+r.pzs+' ámpulas':''}</div></div><div class="cart-conversion"><div><label>CANTIDAD A TRANSFERIR</label><input type="number" min="1" step="1" value="${num(r.pzs)}" data-cart-qty="${i}" inputmode="numeric" ${r.ampPacking?.enabled?'disabled title="Para corregir elimina y agrega el lote nuevamente"':''}></div><button type="button" class="cart-remove" data-cart-remove="${i}">🗑️</button></div></div>`;
       }).join(''):`<div class="empty">No hay productos en el carrito que coincidan con “${esc($('transferCartQ')?.value||'')}”.</div>`)
       :'<div class="empty">Agrega productos al carrito.</div>';
     document.querySelectorAll('[data-cart-remove]').forEach(b=>b.onclick=()=>{
@@ -2674,7 +2685,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
       if(!ok){setStatus('Se conservó el producto en el carrito.');return;}
       cart.splice(i,1);renderCart();setStatus(`Producto eliminado del carrito: ${txt(row.clave)||'SIN CLAVE'}.`,'ok');
     });
-    function updateLine(i){const row=cart[i];if(!row)return;const qtyInput=document.querySelector(`[data-cart-qty="${i}"]`),qty=Math.max(1,Math.floor(num(qtyInput?.value)||1)),plan=manualTransferPlan(row,qty,row.conservationMode||'ONE_TO_ONE');if(!plan.ok){setStatus(plan.message,'bad');qtyInput?.classList.add('mx-invalid');return;}row.pzs=qty;row.origenDescontar=plan.sourceQty;row.destinoSumar=plan.destinationQty;row.cantidadManualSinLimite=false;row.unidadesPorEmpaqueDetectadas=plan.unitsPerPackage;qtyInput?.classList.remove('mx-invalid');setStatus(`Cantidad actualizada: ${plan.sourceQty} de ${d.fromLabel} → ${plan.destinationQty} a ${d.toLabel}.`,'ok');renderTotal();}
+    function updateLine(i){const row=cart[i];if(!row)return;const qtyInput=document.querySelector(`[data-cart-qty="${i}"]`),qty=Math.max(1,Math.floor(num(qtyInput?.value)||1)),plan=manualTransferPlan(row,qty);if(!plan.ok){setStatus(plan.message,'bad');qtyInput?.classList.add('mx-invalid');return;}row.pzs=qty;row.origenDescontar=plan.sourceQty;row.destinoSumar=plan.destinationQty;row.cantidadManualSinLimite=false;row.unidadesPorEmpaqueDetectadas=plan.unitsPerPackage;qtyInput?.classList.remove('mx-invalid');setStatus(`Cantidad actualizada: ${plan.sourceQty} de ${d.fromLabel} → ${plan.destinationQty} a ${d.toLabel}.`,'ok');renderTotal();}
     document.querySelectorAll('[data-cart-qty]').forEach(inp=>inp.onchange=()=>updateLine(Number(inp.dataset.cartQty)));
     renderTotal();updateFloatingCartButton();
   }
@@ -2722,13 +2733,18 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     if(code==='A2E'||origin.includes('ALMAC')||destination.includes('ESTANTE')||destination.includes('ANAQUEL'))return{code:'A2E',from:'almacen',to:'estantes',fromLabel:'Almacén',toLabel:'Estantes',title:'Transferencia de Almacén a Estantes'};
     return null;
   }
-  function normalizeTransferItems(items,d){return (Array.isArray(items)?items:[]).map(r=>{const q=Math.max(0,Math.floor(num(r.pzs??r.cantidad??r.qty))),factor=Math.floor(num(r.unidadesPorEmpaqueDetectadas||1)),mode=txt(r.conservationMode||'ONE_TO_ONE').toUpperCase(),origin=Math.max(0,Math.floor(num(r.origenDescontar??q))),dest=Math.max(0,Math.floor(num(r.destinoSumar??q)));return{inventoryId:txt(r.inventoryId),clave:txt(r.clave),codigo_barras:txt(r.codigo_barras),descripcion:txt(r.descripcion||r.nombre),unidad:txt(r.unidad),lote:txt(r.lote),caducidad:txt(r.caducidad||r.cad),almacen:num(r.almacen),estantes:num(r.estantes),pzs:q,origenDescontar:origin,destinoSumar:dest,cantidadManualSinLimite:false,unidadesPorEmpaqueDetectadas:factor,conservationMode:mode,fraccionamientoConfirmado:r.fraccionamientoConfirmado===true,origen:d.from,destino:d.to};}).filter(r=>r.pzs>0&&(r.clave||r.codigo_barras));}
+  function normalizeTransferItems(items,d){
+    return(Array.isArray(items)?items:[]).map(r=>{
+      const q=Math.floor(num(r.pzs??r.cantidad??r.qty));
+      return{inventoryId:txt(r.inventoryId),clave:txt(r.clave),codigo_barras:txt(r.codigo_barras),descripcion:txt(r.descripcion||r.nombre),unidad:txt(r.unidad),lote:txt(r.lote),caducidad:txt(r.caducidad||r.cad),almacen:num(r.almacen),estantes:num(r.estantes),pzs:q,origenDescontar:q,destinoSumar:q,cantidadManualSinLimite:false,unidadesPorEmpaqueDetectadas:r.ampPacking?.enabled?num(r.ampPacking.warehouseFactor):1,ampPacking:r.ampPacking?.enabled===true?r.ampPacking:null,conservationMode:r.ampPacking?.enabled?'AMP_BASE_V339':'ONE_TO_ONE',origen:d.from,destino:d.to};
+    }).filter(r=>r.pzs>0&&(r.clave||r.codigo_barras));
+  }
   function buildTransferRequest(sourceItems,d,requester,operator,retryOf=null){
     const c=cfg(),retry=retryOf&&txt(retryOf.id),id=retry?txt(retryOf.id):makeId(),requestFolio=retry?(txt(retryOf.requestFolio||retryOf.request_folio||retryOf.folio)||makeRequestFolio()):makeRequestFolio(),nowDate=new Date(),now=nowDate.toISOString(),nowMs=nowDate.getTime(),items=normalizeTransferItems(sourceItems,d),totalPzs=items.reduce((sum,row)=>sum+num(row.destinoSumar??row.pzs),0);
     const previousRejections=Array.isArray(retryOf?.rejectionHistory)?retryOf.rejectionHistory.slice(-8):[];
     if(retry&&(retryOf?.rejectedAt||retryOf?.message||Array.isArray(retryOf?.details)&&retryOf.details.length))previousRejections.push({rejectedAt:txt(retryOf.rejectedAt),message:txt(retryOf.message),details:Array.isArray(retryOf.details)?retryOf.details:[]});
     const revision=retry?Math.max(1,num(retryOf?.revision||retryOf?.retryCount)+1):0;
-    return{id,requestFolio,folio:'',status:'pending',source:'VISOR_TRANSFERENCIAS',autoApply:true,autoValidate:true,transferEngine:items.some(r=>r.fraccionamientoConfirmado)?'BOX_AMPOULE_V339':'ONE_TO_ONE_V300',sucursal:c.branch,createdAt:now,createdAtMs:nowMs,updatedAt:now,updatedAtMs:nowMs,createdAtText:formatDate(now),createdBy:operator.username,usuario:operator.username,usuarioAutorizado:operator.username,usuario_salida:operator.username,autorizadoEn:operator.authenticatedAt,deviceId:operator.deviceId||'',solicitante:txt(requester)||'MACROXEL TRANSFERENCIAS',origen:d.from.toUpperCase(),destino:d.to.toUpperCase(),direccion:d.code,totalPzs,totalProductos:items.length,items,message:'',details:[],rejectedAt:'',rejectedBy:'',...(retry?{sameFolioCorrection:true,reopenedAt:now,revision,retryCount:revision,rejectionHistory:previousRejections,originalRejectedAt:txt(retryOf.rejectedAt),originalCreatedAt:txt(retryOf.originalCreatedAt||retryOf.createdAt)}:{})};
+    return{id,requestFolio,folio:'',status:'pending',source:'VISOR_TRANSFERENCIAS',autoApply:true,autoValidate:true,transferEngine:'AMP_BASE_V339',sucursal:c.branch,createdAt:now,createdAtMs:nowMs,updatedAt:now,updatedAtMs:nowMs,createdAtText:formatDate(now),createdBy:operator.username,usuario:operator.username,usuarioAutorizado:operator.username,usuario_salida:operator.username,autorizadoEn:operator.authenticatedAt,deviceId:operator.deviceId||'',solicitante:txt(requester)||'MACROXEL TRANSFERENCIAS',origen:d.from.toUpperCase(),destino:d.to.toUpperCase(),direccion:d.code,totalPzs,totalProductos:items.length,items,message:'',details:[],rejectedAt:'',rejectedBy:'',...(retry?{sameFolioCorrection:true,reopenedAt:now,revision,retryCount:revision,rejectionHistory:previousRejections,originalRejectedAt:txt(retryOf.rejectedAt),originalCreatedAt:txt(retryOf.originalCreatedAt||retryOf.createdAt)}:{})};
   }
   function inflightLoad(){try{const q=JSON.parse(localStorage.getItem(INFLIGHT_KEY)||'null');return q&&txt(q.id)&&txt(q.sucursal)===txt(cfg().branch)?q:null}catch(_e){return null}}
   function inflightSave(q){try{localStorage.setItem(INFLIGHT_KEY,JSON.stringify(q));return true}catch(_e){return false}}
@@ -2823,7 +2839,7 @@ Se enviará a Macroxel y quedará guardada en Historial.`;
         const iid=txt(source.inventoryId),lot=norm(source.lote),cad=norm(source.caducidad||source.cad),bar=norm(source.codigo_barras||source.barcode);
         const fresh=(lots||[]).find(row=>iid&&txt(row.inventoryId||row._id)===iid)||(lots||[]).find(row=>(!lot||norm(row.lote)===lot)&&(!cad||norm(row.caducidad||row.cad)===cad)&&(!bar||norm(row.codigo_barras||row.barcode)===bar));
         const qty=Math.max(1,Math.floor(num(source.pzs??source.cantidad??source.qty)||1)),reason=rejectionReasonForItem(base,source);
-        reviewRows.push(Object.assign({},source,fresh||{},fresh?{}:{almacen:0,estantes:0,existencia:0},{descripcion:txt(source.descripcion||fresh?.descripcion),pzs:qty,origenDescontar:num(source.origenDescontar??qty),destinoSumar:num(source.destinoSumar??qty),directionCode:d.code,cantidadManualSinLimite:false,unidadesPorEmpaqueDetectadas:num(source.unidadesPorEmpaqueDetectadas||1),conservationMode:txt(source.conservationMode||'ONE_TO_ONE'),fraccionamientoConfirmado:source.fraccionamientoConfirmado===true,__mxRejectedReview:Boolean(reason),__mxRejectedReason:reason}));
+        reviewRows.push(Object.assign({},source,fresh||{},fresh?{}:{almacen:0,estantes:0,existencia:0},{descripcion:txt(source.descripcion||fresh?.descripcion),pzs:qty,origenDescontar:num(source.origenDescontar??qty),destinoSumar:num(source.destinoSumar??qty),directionCode:d.code,cantidadManualSinLimite:false,unidadesPorEmpaqueDetectadas:num(source.unidadesPorEmpaqueDetectadas||1),conservationMode:txt(source.conservationMode||'ONE_TO_ONE'),ampPacking:source.ampPacking?.enabled?source.ampPacking:null,__mxRejectedReview:Boolean(reason),__mxRejectedReason:reason}));
       }
       if(!reviewRows.some(row=>row.__mxRejectedReview))reviewRows.forEach(row=>{row.__mxRejectedReview=true;row.__mxRejectedReason=txt(base.message||rejected.message)||'Revisa cantidad, lote y existencia antes de reenviar.';});
       cart=reviewRows;reviewContext={id,record:Object.assign({},rejected,base,{id,requestFolio:txt(base.requestFolio||rejected.requestFolio||rejected.folio)})};
@@ -2906,7 +2922,7 @@ Se enviará a Macroxel y quedará guardada en Historial.`;
     );
     window.addEventListener('resize',()=>{if(!transferCartIsMobile())setTransferCartOpen(false,{focusSearch:false});else updateFloatingCartButton();});
     lastDirection='';try{localStorage.removeItem(DIRECTION_KEY);}catch(_e){}if($('transferDirection')){$('transferDirection').value='';$('transferDirection').addEventListener('change',e=>{const next=e.currentTarget.value==='E2A'?'E2A':e.currentTarget.value==='A2E'?'A2E':'';if(cart.length&&!confirm('Cambiar el sentido vaciará el carrito actual. ¿Continuar?')){e.currentTarget.value=lastDirection;return;}cart=[];reviewContext=null;lastDirection=next;updateDirectionUi();if(next)setStatus('Sentido seleccionado. Busca los productos para el origen elegido.','ok');else setStatus('Selecciona el sentido de la transferencia.','bad');});}updateDirectionUi();
-    const oldPatients=$('tabPatients').onclick,oldInventory=$('tabInventory').onclick;$('tabPatients').onclick=()=>{setTransferCartOpen(false,{focusSearch:false});$('transferView').classList.add('mx-hidden');$('tabTransfer').classList.remove('active');oldPatients&&oldPatients();};$('tabInventory').onclick=()=>{setTransferCartOpen(false,{focusSearch:false});$('transferView').classList.add('mx-hidden');$('tabTransfer').classList.remove('active');oldInventory&&oldInventory();};$('tabTransfer').onclick=showTransfer;$('transferCartQ').addEventListener('input',renderCart);$('transferCartQ').addEventListener('search',renderCart);$('transferQ').addEventListener('input',()=>{transferSearchSelectArmed=false;clearTimeout(searchTimer);searchTimer=setTimeout(renderResults,80);});$('transferQ').addEventListener('focus',()=>{if(transferSearchSelectArmed){transferSelectSearchNow();requestAnimationFrame(transferSelectSearchNow);}});$('transferQ').addEventListener('click',()=>{if(transferSearchSelectArmed)transferSelectSearchNow();});$('transferQ').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();document.querySelector('.transfer-result')?.click();}});$('transferKeyboardToggle').onclick=()=>transferApplyKeyboardMode(transferSearchKeyboardMode==='numeric'?'text':'numeric',true);transferApplyKeyboardMode('numeric',false);$('btnClearTransferCart').onclick=()=>{if(!cart.length){setStatus('El carrito ya está vacío.');return;}const productsCount=cart.length,pieces=cart.reduce((sum,row)=>sum+num(row.pzs),0);const ok=window.confirm(`¿Limpiar el carrito?\n\nSe eliminarán ${productsCount} producto${productsCount===1?'':'s'} y ${pieces} pieza${pieces===1?'':'s'}.\n\nEsta acción no se puede deshacer.`);if(!ok){setStatus('Se conservó el contenido del carrito.');return;}cart=[];renderCart();setStatus('Carrito limpio.','ok');};$('btnFinalizeTransfer').onclick=finalize;$('tabTransferHistory').onclick=showTransferHistory;$('tabTransferAdjust').onclick=showTransferAdjust;$('btnDeleteTransferHistory').onclick=deleteTransferHistory;$('transferQtyCancel').onclick=closeQty;$('transferQtyAccept').onclick=addSelected;$('transferQtyInput').addEventListener('focus',()=>{if(transferQtySelectArmed){transferSelectQtyNow();requestAnimationFrame(transferSelectQtyNow);}});$('transferQtyInput').addEventListener('click',()=>{if(transferQtySelectArmed)transferSelectQtyNow();});$('transferQtyInput').addEventListener('input',e=>{transferQtySelectArmed=false;const clean=String(e.target.value||'').replace(/\D+/g,'');if(e.target.value!==clean)e.target.value=clean;updateQtyTransferSummary();});$('mxTransferPackMode').addEventListener('change',updateQtyTransferSummary);$('transferQtyInput').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addSelected();}if(e.key==='Escape')closeQty();});$('transferQtyModal').addEventListener('click',e=>{if(e.target===$('transferQtyModal'))closeQty();});
+    const oldPatients=$('tabPatients').onclick,oldInventory=$('tabInventory').onclick;$('tabPatients').onclick=()=>{setTransferCartOpen(false,{focusSearch:false});$('transferView').classList.add('mx-hidden');$('tabTransfer').classList.remove('active');oldPatients&&oldPatients();};$('tabInventory').onclick=()=>{setTransferCartOpen(false,{focusSearch:false});$('transferView').classList.add('mx-hidden');$('tabTransfer').classList.remove('active');oldInventory&&oldInventory();};$('tabTransfer').onclick=showTransfer;$('transferCartQ').addEventListener('input',renderCart);$('transferCartQ').addEventListener('search',renderCart);$('transferQ').addEventListener('input',()=>{transferSearchSelectArmed=false;clearTimeout(searchTimer);searchTimer=setTimeout(renderResults,80);});$('transferQ').addEventListener('focus',()=>{if(transferSearchSelectArmed){transferSelectSearchNow();requestAnimationFrame(transferSelectSearchNow);}});$('transferQ').addEventListener('click',()=>{if(transferSearchSelectArmed)transferSelectSearchNow();});$('transferQ').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();document.querySelector('.transfer-result')?.click();}});$('transferKeyboardToggle').onclick=()=>transferApplyKeyboardMode(transferSearchKeyboardMode==='numeric'?'text':'numeric',true);transferApplyKeyboardMode('numeric',false);$('btnClearTransferCart').onclick=()=>{if(!cart.length){setStatus('El carrito ya está vacío.');return;}const productsCount=cart.length,pieces=cart.reduce((sum,row)=>sum+num(row.pzs),0);const ok=window.confirm(`¿Limpiar el carrito?\n\nSe eliminarán ${productsCount} producto${productsCount===1?'':'s'} y ${pieces} pieza${pieces===1?'':'s'}.\n\nEsta acción no se puede deshacer.`);if(!ok){setStatus('Se conservó el contenido del carrito.');return;}cart=[];renderCart();setStatus('Carrito limpio.','ok');};$('btnFinalizeTransfer').onclick=finalize;$('tabTransferHistory').onclick=showTransferHistory;$('tabTransferAdjust').onclick=showTransferAdjust;$('btnDeleteTransferHistory').onclick=deleteTransferHistory;$('transferQtyCancel').onclick=closeQty;$('transferQtyAccept').onclick=addSelected;$('transferQtyInput').addEventListener('focus',()=>{if(transferQtySelectArmed){transferSelectQtyNow();requestAnimationFrame(transferSelectQtyNow);}});$('transferQtyInput').addEventListener('click',()=>{if(transferQtySelectArmed)transferSelectQtyNow();});$('transferQtyInput').addEventListener('input',e=>{transferQtySelectArmed=false;const clean=String(e.target.value||'').replace(/\D+/g,'');if(e.target.value!==clean)e.target.value=clean;updateQtyTransferSummary();});$('mxTransferPackEnabled').addEventListener('change',showAmpFields);for(const id of ['mxTransferPackStoredUnit','mxTransferAmpPerInner','mxTransferInnerPerMaster','mxTransferPackMoveUnit','mxTransferPackConfirm'])$(id).addEventListener('input',updateQtyTransferSummary);$('transferQtyInput').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addSelected();}if(e.key==='Escape')closeQty();});$('transferQtyModal').addEventListener('click',e=>{if(e.target===$('transferQtyModal'))closeQty();});
     $('transferLotsClose').onclick=()=>$('transferLotsModal').classList.remove('show');
     $('transferLotsModal').addEventListener('click',e=>{if(e.target===$('transferLotsModal'))$('transferLotsModal').classList.remove('show');});
     window.addEventListener('mx-viewer-config-changed',()=>{loaded=false;mxTransferProductsSig='';renderHistory();if(!$('transferView').classList.contains('mx-hidden'))transferBackgroundSync(true).catch(()=>{});});
