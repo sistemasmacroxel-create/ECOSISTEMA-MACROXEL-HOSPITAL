@@ -279,7 +279,8 @@
             <button id="mxLabelKeyboardToggle" type="button" title="Cambiar a teclado de letras" aria-label="Cambiar tipo de teclado" style="border:1px solid #c1d3d9;border-radius:8px;background:#e8f4f4;color:#124554;padding:8px 10px;font-weight:800;min-width:48px">ABC</button>
           </div>
           <div class="search-results" id="search-results" role="listbox" hidden></div>
-          <p class="field-tip">Admite claves incompletas sin perder los ceros: <b>0570</b>, <b>0570.00</b>, <b>570</b>.</p>
+          <p class="field-tip">Puedes escribir una clave exacta aunque no exista aún en CPM o Inventario. Ejemplo: <b>5942.02</b> no se cambiará por 5942.00.</p>
+          <button type="button" id="mxRefreshLabelCatalog" class="btn btn-outline" style="margin-top:7px;padding:7px 12px;font-size:12px">↻ Actualizar CPM e Inventario</button>
         </div>
 
         <div id="chosen-product" class="chosen-product" hidden>
@@ -355,9 +356,79 @@ window.CPM_CATALOG = [{"id":"0022.00","full":"010.000.0022.00","name":"CASEINATO
 /* Macroxel - Etiquetas de almacén CPM. Sin dependencias de red. */
 (() => {
   'use strict';
-  const CATALOG = Array.isArray(window.CPM_CATALOG) ? window.CPM_CATALOG : [];
+  let CATALOG = Array.isArray(window.CPM_CATALOG) ? window.CPM_CATALOG.slice() : [];
   const BY_ID = new Map(CATALOG.map(p => [p.id, p]));
   const STORE_KEY = 'macroxel-etiquetas-cpm-v1';
+  // Conserva los registros de impresión al actualizar CPM.
+  const MANUAL_KEY = 'macroxel-etiquetas-manuales-v362';
+  const REMOTE_KEY = 'macroxel-etiquetas-catalogo-dinamico-v362';
+  const catalogCacheKey=()=>{try{return REMOTE_KEY+'|'+(window.parent?.mxViewerGetCfg?.()?.branch||'HGAM');}catch(_e){return REMOTE_KEY+'|HGAM';}};
+  const keyText=v=>String(v??'').trim().toUpperCase();
+  const isKeyText=v=>/^[A-Z0-9][A-Z0-9._-]{0,79}$/.test(keyText(v))&&/[0-9]/.test(keyText(v));
+  const isExact=(p,c)=>keyText(p?.id)===c||keyText(p?.full)===c;
+  function productFromRow(row){
+    const full=keyText(row?.clave??row?.csg??row?.full??row?.id);
+    if(!isKeyText(full))return null;
+    const id=/^\d{3}\.\d{3}\.\d{4}\.\d{2}$/.test(full)?full.slice(-7):full;
+    const name=String(row?.descripcion||row?.nombre||row?.name||'').trim();
+    return {id,full,name:name||full,desc:name||full,fromSync:true};
+  }
+  function storeManual(product){
+    if(!CATALOG.some(p=>isExact(p,keyText(product.id))))CATALOG.push(product);
+    try{
+      const arr=JSON.parse(localStorage.getItem(MANUAL_KEY)||'[]');
+      const rows=Array.isArray(arr)?arr.filter(p=>keyText(p?.id)!==keyText(product?.id)):[];
+      rows.push({id:product.id,full:product.full,name:product.name,desc:product.desc,manual:true});
+      localStorage.setItem(MANUAL_KEY,JSON.stringify(rows.slice(-600)));
+    }catch(_e){}
+  }
+  function readSavedProducts(){
+    for(const key of [catalogCacheKey(),MANUAL_KEY]){
+      try{
+        const rows=JSON.parse(localStorage.getItem(key)||'[]');if(!Array.isArray(rows))continue;
+        for(const row of rows){const p=productFromRow(row);if(p){p.manual=!!row.manual;BY_ID.set(p.id,p);}}
+        if(key===catalogCacheKey()&&rows.length)CATALOG=rows.map(productFromRow).filter(Boolean);
+      }catch(_e){}
+    }
+  }
+  let mxCatalogSyncPromise=null;
+  async function refreshLiveCatalog(force=true){
+    if(mxCatalogSyncPromise)return mxCatalogSyncPromise;
+    mxCatalogSyncPromise=(async()=>{
+      const host=window.parent!==window?window.parent:window;
+      const bridge=host?.mxCpmCache;
+      if(!bridge?.syncCatalog)return false;
+      let response;
+      try{response=await bridge.syncCatalog(!!force);}catch(e){console.warn('[ETIQUETAS] CPM sin conexión:',e);return false;}
+      if(!Array.isArray(response?.catalog))return false;
+      let next=response.catalog.map(productFromRow).filter(Boolean);
+      try{
+        if(force&&typeof bridge.sync==='function')await bridge.sync(true).catch(()=>{});
+        const stock=bridge.allStockRows?.()||[];
+        const keys=new Set(next.map(p=>keyText(p.full)));
+        for(const row of stock){
+          const p=productFromRow(row);
+          if(p&&!keys.has(keyText(p.full))){next.push(p);keys.add(keyText(p.full));}
+        }
+      }catch(_e){}
+      const counts=new Map();for(const p of next)counts.set(p.id,(counts.get(p.id)||0)+1);
+      next=next.map(p=>counts.get(p.id)>1?{...p,id:p.full}:p);
+      const uniq=new Map();for(const p of next)uniq.set(p.id,p);
+      next=[...uniq.values()];
+      const preservedManual=[];
+      try{const arr=JSON.parse(localStorage.getItem(MANUAL_KEY)||'[]');if(Array.isArray(arr))for(const r of arr){const p=productFromRow(r);if(p){p.manual=true;preservedManual.push(p);}}}catch(_e){}
+      const matched=new Set(next.flatMap(p=>[keyText(p.id),keyText(p.full)]));
+      CATALOG=next.concat(preservedManual.filter(p=>!matched.has(keyText(p.id))&&!matched.has(keyText(p.full))));
+      for(const product of CATALOG)BY_ID.set(product.id,product);
+      try{localStorage.setItem(catalogCacheKey(),JSON.stringify(next));}catch(_e){}
+      $('catalog-count').textContent='CPM / Inventario · '+next.length.toLocaleString('es-MX')+' claves';
+      if(elements?.search?.value.trim())renderSuggestions();
+      render();
+      return true;
+    })();
+    try{return await mxCatalogSyncPromise;}finally{mxCatalogSyncPromise=null;}
+  }
+  readSavedProducts();
   const MAX_LABELS = 500;
   const LABELS_PER_PAGE = 8;
   const $ = id => document.getElementById(id);
