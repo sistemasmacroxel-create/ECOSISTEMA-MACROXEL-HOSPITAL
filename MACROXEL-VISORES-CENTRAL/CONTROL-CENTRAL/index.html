@@ -1115,7 +1115,7 @@ body.mx-auth-blue-flash-v167::after{content:"";position:fixed;inset:0;z-index:21
 </section>
 <section class="mx-hidden" id="etiquetasView" aria-label="Generador de etiquetas CPM">
 <div class="card" style="padding:0;overflow:hidden;border-radius:14px">
-<iframe id="mxEtiquetasFrame" title="Macroxel: Generador de etiquetas CPM" src="etiquetas.html?v=20261119-v361-ocho-por-hoja" loading="lazy" style="width:100%;height:calc(100dvh - 155px);min-height:750px;border:0;display:block;background:#f2f6f7" allow="clipboard-write"></iframe>
+<iframe id="mxEtiquetasFrame" title="Macroxel: Generador de etiquetas CPM" src="etiquetas.html?v=20261119-v362-claves-dinamicas" loading="lazy" style="width:100%;height:calc(100dvh - 155px);min-height:750px;border:0;display:block;background:#f2f6f7" allow="clipboard-write"></iframe>
 </div></section>
 <section class="mx-hidden" id="transferView">
 <div class="card transfer-card">
@@ -2020,7 +2020,8 @@ async function mxTrBumpVersion(path){const p=String(path||'');const key=p.includ
   let cacheDbPromise=null,lastCatalogCheckAt=0,lastCatalogBranch='',MEM_CATALOG=null,MEM_TOTALS=null,MEM_SEQ=0,MEM_UPDATED_AT=null,MEM_UPDATED_TEXT='';
   const DIRECT_LOT_STORE={};
   const txt=v=>String(v==null?'':v).trim(),norm=v=>txt(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' '),num=v=>{const n=Number(v);return Number.isFinite(n)?n:0;};
-  const validCpmKey=v=>/^\d{3}\.\d{3}\.\d{4}\.\d{2}$/.test(norm(v));
+  // v362: también claves nuevas literales como 5942.02.
+  const validCpmKey=v=>/^[A-Z0-9][A-Z0-9._-]{0,79}$/.test(norm(v)) && /[0-9]/.test(norm(v));
   const cfg=()=>window.mxViewerGetCfg?window.mxViewerGetCfg():{db:'',branch:'HGAM'};
   const get=path=>window.mxViewerFetchJson(path);
   function safeRemoveLegacy(){for(const k of LEGACY_KEYS){try{localStorage.removeItem(k)}catch(_e){}}}
