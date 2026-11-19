@@ -2088,6 +2088,11 @@ async function mxTrBumpVersion(path){const p=String(path||'');const key=p.includ
   let mxWarmScheduled=false;
   function warm(){mxWarmScheduled=false;if(!window.__mxViewerLicensed||document.hidden)return;syncStocks(false).catch(()=>{});}
   function scheduleWarm(soon=false){if(mxWarmScheduled)return;mxWarmScheduled=true;if(soon)setTimeout(warm,20);else if('requestIdleCallback'in window)requestIdleCallback(warm,{timeout:3500});else setTimeout(warm,2600)}
+  // v362: actualizar CPM cuando se entra al módulo Etiquetas.
+  window.addEventListener('mx-module-active-change', event=>{
+    if(event.detail?.active!=='labels')return;
+    try{document.getElementById('mxEtiquetasFrame')?.contentWindow?.MacroxelCPM?.refreshLiveCatalog?.(true)?.catch?.(()=>{});}catch(_e){}
+  });
   window.addEventListener('mx-viewer-licensed',()=>scheduleWarm(false));window.addEventListener('online',()=>scheduleWarm(false));window.addEventListener('mx-module-active-change',e=>{if(['transfer','surtido','recipes','adjust','analysis','pharmacy'].includes(e.detail?.active))scheduleWarm(true)});
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>scheduleWarm(false),{once:true});else scheduleWarm(false);
 })();
